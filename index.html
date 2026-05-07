@@ -1,0 +1,1205 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>데이터 기반 학습 전략 컨설턴트 AI</title>
+  <style>
+    :root {
+      --bg: #eef2f7;
+      --panel: #ffffff;
+      --ink: #0f172a;
+      --muted: #64748b;
+      --line: #d9e2ec;
+      --brand: #0f766e;
+      --brand-2: #155e75;
+      --soft-1: #dbeafe;
+      --soft-2: #ccfbf1;
+      --soft-3: #fff7ed;
+      --ok: #16a34a;
+      --warn: #d97706;
+      --danger: #dc2626;
+      --shadow: 0 10px 24px rgba(2, 6, 23, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at 0% 0%, var(--soft-1), transparent 35%), radial-gradient(circle at 100% 20%, var(--soft-2), transparent 30%), var(--bg);
+      color: var(--ink);
+      font-family: "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+    }
+    .wrap { width: min(1180px, 94%); margin: 28px auto 40px; display: grid; gap: 14px; }
+    .hero { background: linear-gradient(130deg, var(--brand), var(--brand-2)); color: #ecfeff; border-radius: 16px; padding: 24px; box-shadow: var(--shadow); }
+    .hero-row { display: flex; gap: 14px; align-items: center; }
+    .logo {
+      width: 82px; height: 82px; border-radius: 14px; object-fit: cover; border: 2px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.18);
+    }
+    .hero-text { flex: 1; }
+    .hero h1 { margin: 0 0 8px; font-size: clamp(1.35rem, 2.7vw, 2rem); }
+    .hero p { margin: 0; color: #d1fae5; }
+    .panel { background: var(--panel); border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: var(--shadow); padding: 16px; }
+    .title { margin: 0 0 10px; font-size: 1.08rem; }
+    .grid2 { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .field { display: grid; gap: 6px; }
+    .api-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+    .api-tools button { width: 100%; padding: 11px 10px; border-radius: 12px; }
+    .api-status { min-height: 1.25em; color: #0f766e; font-weight: 700; font-size: 0.9rem; margin-top: 6px; }
+    .mode-card { border: 1px solid #dce7f2; border-radius: 14px; padding: 14px; background: linear-gradient(180deg, #ffffff, #f7fbff); }
+    .mode-stack { display: grid; gap: 12px; }
+    label { font-weight: 700; font-size: 0.92rem; }
+    input, textarea, select {
+      width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 0.94rem; background: #fff;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    .drop { border: 1px dashed var(--line); border-radius: 12px; background: #f8fafc; padding: 10px; }
+    .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    button {
+      border: none; border-radius: 10px; padding: 10px 14px; font-size: 0.92rem; font-weight: 700; cursor: pointer;
+    }
+    .primary { background: var(--brand); color: #fff; }
+    .secondary { background: #e2e8f0; color: #0f172a; }
+    .status { color: var(--brand); font-weight: 700; min-height: 1.2em; }
+    .hint { color: var(--muted); font-size: 0.88rem; }
+    .cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+    .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; background: #fafafa; }
+    .k { color: var(--muted); font-size: 0.82rem; }
+    .v { font-size: 1.2rem; font-weight: 800; margin-top: 3px; }
+    .charts { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
+    .chart-box { border: 1px solid #dbe4ef; border-radius: 14px; padding: 12px; background: linear-gradient(180deg, #ffffff, #f8fbff); }
+    .chart-box h4 { margin: 0 0 8px; font-size: 0.92rem; color: #1e293b; letter-spacing: 0.1px; }
+    canvas {
+      width: 100%; height: 260px; border: 1px solid #e2e8f0; border-radius: 10px;
+      background: radial-gradient(circle at 20% 0%, #f8fbff 0%, #ffffff 50%);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.92rem; margin-top: 10px; }
+    th, td { border-bottom: 1px solid #e2e8f0; text-align: left; padding: 8px; vertical-align: top; }
+    th { background: #f8fafc; }
+    .report { line-height: 1.6; }
+    .section { border-left: 4px solid #99f6e4; padding-left: 10px; margin: 12px 0; }
+    .paste-zone {
+      border: 1px dashed #93c5fd;
+      background: #eff6ff;
+      border-radius: 12px;
+      padding: 10px;
+      color: #1e3a8a;
+      font-size: 0.9rem;
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+    }
+    .thumb-grid {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      margin-top: 8px;
+    }
+    .thumb-grid img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+    }
+    .hidden { display: none !important; }
+    #studentMode { display: block; }
+    #compareMode { display: none; }
+    body[data-mode="student"] #studentMode { display: block !important; }
+    body[data-mode="student"] #compareMode { display: none !important; }
+    body[data-mode="compare"] #studentMode { display: none !important; }
+    body[data-mode="compare"] #compareMode { display: block !important; }
+    @media (max-width: 840px) {
+      .grid2 { grid-template-columns: 1fr; }
+      .api-tools { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <div class="hero-row">
+        <img id="brandLogo" class="logo" alt="로고" />
+        <div class="hero-text">
+          <h1>데이터 기반 학습 전략 컨설턴트 AI</h1>
+          <p>시험 범위 자료와 실제 시험지를 비교 분석해 총평, 시각화, 맞춤 학습 솔루션 보고서를 생성합니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3 class="title">모드 선택 및 로고</h3>
+      <div class="grid2">
+        <div class="mode-card mode-stack">
+          <div class="field">
+          <label for="modeSelect">사용 모드</label>
+          <select id="modeSelect" onchange="window.__forceModeApply && window.__forceModeApply(this.value)">
+            <option value="student">학생 맞춤 총평 모드</option>
+            <option value="compare">시험지 난이도 비교 모드 (작년 vs 올해)</option>
+          </select>
+        </div>
+          <div class="field">
+            <label for="logoInput">로고 이미지 업로드</label>
+            <input type="file" id="logoInput" accept=".png,.jpg,.jpeg,.webp" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="apiKeyQuick">Gemini API Key 저장</label>
+          <input type="password" id="apiKeyQuick" placeholder="AIza... (여기에 입력 후 저장)" />
+          <div class="api-tools">
+            <button class="secondary" id="saveApiBtn" type="button">API 키 저장</button>
+            <button class="secondary" id="loadApiBtn" type="button">불러오기</button>
+            <button class="secondary" id="clearApiBtn" type="button">삭제</button>
+          </div>
+          <div class="api-status" id="apiStatus"></div>
+        </div>
+      </div>
+      <div class="hint">방금 보내주신 이미지는 이 입력으로 업로드하면 로고로 고정됩니다.</div>
+    </section>
+
+    <section id="studentMode">
+    <section class="panel">
+      <h3 class="title">1) 기본 정보 및 시작</h3>
+      <div class="grid2">
+        <div class="field"><label for="studentName">학생 이름</label><input id="studentName" placeholder="예: 홍길동" /></div>
+        <div class="field"><label for="schoolGrade">학교/학년</label><input id="schoolGrade" placeholder="예: 감일고 1학년" /></div>
+        <div class="field"><label for="examType">시험 종류</label><input id="examType" placeholder="예: 2025년 1학기 중간고사 영어" /></div>
+        <div class="field"><label for="apiKey">Gemini API Key (2.5 Flash)</label><input type="password" id="apiKey" placeholder="AIza..." /></div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button class="primary" id="startBtn">시작</button>
+      </div>
+      <div class="status" id="flowStatus"></div>
+      <div class="hint" id="flowHint">"시작" 버튼을 누르면 1단계를 시작합니다.</div>
+    </section>
+
+    <section class="panel">
+      <h3 class="title">2) 시험 범위 원문 자료 업로드</h3>
+      <div class="drop">
+        <input type="file" id="scopeFiles" multiple accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" />
+        <div class="hint">PDF, 이미지, 텍스트 파일 다중 업로드 가능</div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="secondary" id="scopeDoneBtn">자료 업로드 완료</button>
+      </div>
+      <div class="status" id="scopeStatus"></div>
+    </section>
+
+    <section class="panel">
+      <h3 class="title">3) 실제 시험지 업로드</h3>
+      <div class="drop">
+        <input type="file" id="examFile" accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" />
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="secondary" id="examDoneBtn">시험지 파일 확인 완료</button>
+      </div>
+      <div class="status" id="examStatus"></div>
+    </section>
+
+    <section class="panel">
+      <h3 class="title">4) 점수 및 오답 자료 업로드</h3>
+      <div class="grid2">
+        <div class="field"><label for="totalScoreInput">학생 총점</label><input id="totalScoreInput" type="number" min="0" step="0.1" placeholder="예: 76" /></div>
+        <div class="field"><label for="maxScoreInput">만점(선택)</label><input id="maxScoreInput" type="number" min="1" step="0.1" placeholder="예: 100" /></div>
+      </div>
+      <div class="drop" style="margin-top:8px;">
+        <label for="wrongFiles">틀린 문항 자료(필수)</label>
+        <input type="file" id="wrongFiles" multiple accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" />
+        <div class="hint">파일 업로드 외에도 아래 입력 방식 사용 가능</div>
+        <textarea id="wrongManualInput" placeholder="예: 12번, 19번 오답 / 25번 보기 3번 선택 (정답 2번)"></textarea>
+        <div id="wrongPasteZone" class="paste-zone">여기에 스크린샷을 붙여넣기(Ctrl+V) 하세요.</div>
+        <div id="wrongPastePreview" class="thumb-grid"></div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="secondary" id="wrongDoneBtn">오답 자료 업로드 완료</button>
+      </div>
+      <div class="status" id="wrongStatus"></div>
+    </section>
+
+    <section class="panel">
+      <h3 class="title">5) 최종 보고서 생성</h3>
+      <div class="row">
+        <button class="primary" id="generateBtn">종합 분석 보고서 생성</button>
+        <button class="secondary" id="exportBtn">결과 HTML 내보내기</button>
+      </div>
+      <div class="status" id="genStatus"></div>
+      <div class="hint">Mermaid 없이 CSS/JavaScript 기반 차트로 시각화합니다.</div>
+    </section>
+
+    <section class="panel">
+      <h3 class="title">요약 지표</h3>
+      <div class="cards">
+        <div class="card"><div class="k">총 문항 수</div><div class="v" id="sumQuestions">0</div></div>
+        <div class="card"><div class="k">학생 총점</div><div class="v" id="sumScore">-</div></div>
+        <div class="card"><div class="k">예상 백분위</div><div class="v" id="sumPercentile">-</div></div>
+        <div class="card"><div class="k">최다 유형</div><div class="v" id="sumTopType">-</div></div>
+      </div>
+
+      <div class="charts" style="margin-top:12px;">
+        <div class="chart-box"><h4>그래프 1) 문제 유형별 득점률 (파이)</h4><canvas id="pieChart" width="500" height="260"></canvas></div>
+        <div class="chart-box"><h4>그래프 2) 난이도별 정답률 (막대)</h4><canvas id="barChart" width="500" height="260"></canvas></div>
+        <div class="chart-box"><h4>인포그래픽 3) 핵심 역량 진단 (레이더)</h4><canvas id="radarChart" width="500" height="260"></canvas></div>
+      </div>
+
+      <table>
+        <thead><tr><th>번호</th><th>문제 제목</th><th>배점</th><th>난이도</th><th>문제유형</th><th>정오</th></tr></thead>
+        <tbody id="questionTbody"></tbody>
+      </table>
+
+      <article class="report" id="reportArea"></article>
+    </section>
+    </section>
+
+    <section id="compareMode" class="hidden">
+      <section class="panel">
+        <h3 class="title">시험지 난이도 비교 (작년 vs 올해)</h3>
+        <div class="field"><label for="compareExamInfo">시험 정보</label><input id="compareExamInfo" placeholder="예: 감일고 1학년 영어 중간고사 비교" /></div>
+        <div class="grid2" style="margin-top:8px;">
+          <div class="drop">
+            <label for="lastYearFile">작년도 시험지 업로드</label>
+            <input type="file" id="lastYearFile" accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" />
+          </div>
+          <div class="drop">
+            <label for="thisYearFile">올해 시험지 업로드</label>
+            <input type="file" id="thisYearFile" accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button class="primary" id="compareBtn">난이도 비교 분석</button>
+          <button class="secondary" id="compareExportBtn">비교 결과 HTML 내보내기</button>
+        </div>
+        <div class="status" id="compareStatus"></div>
+      </section>
+
+      <section class="panel">
+        <div class="cards">
+          <div class="card"><div class="k">작년도 체감 난이도</div><div class="v" id="lastDiff">-</div></div>
+          <div class="card"><div class="k">올해 체감 난이도</div><div class="v" id="thisDiff">-</div></div>
+          <div class="card"><div class="k">난이도 변화</div><div class="v" id="diffDelta">-</div></div>
+          <div class="card"><div class="k">변화 핵심 유형</div><div class="v" id="diffTopType">-</div></div>
+        </div>
+        <div class="charts" style="margin-top:12px;">
+          <div class="chart-box"><h4>난이도 요소 점수 비교</h4><canvas id="compareBar" width="500" height="260"></canvas></div>
+          <div class="chart-box"><h4>유형 분포 비교</h4><canvas id="compareTypeBar" width="500" height="260"></canvas></div>
+        </div>
+        <article class="report" id="compareReportArea"></article>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      function safeGet(k) {
+        try { return localStorage.getItem(k) || ""; } catch (_) {}
+        try {
+          var m = document.cookie.match(new RegExp("(?:^|; )" + k + "=([^;]*)"));
+          if (m && m[1]) return decodeURIComponent(m[1]);
+        } catch (_) {}
+        return "";
+      }
+      var savedMode = safeGet("exam_consultant_mode");
+      if (savedMode === "student" || savedMode === "compare") {
+        document.body.setAttribute("data-mode", savedMode);
+      }
+      window.__forceModeApply = function (mode) {
+        if (mode !== "student" && mode !== "compare") return;
+        document.body.setAttribute("data-mode", mode);
+      };
+    })();
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    const state = {
+      step: 0,
+      scopeFiles: [], examFile: null, wrongFiles: [],
+      scopeTexts: [], examText: "", wrongText: "",
+      student: { name: "", schoolGrade: "", examType: "", score: null, maxScore: 100 },
+      report: null,
+      compareReport: null,
+      wrongPastedImages: []
+    };
+    const API_KEY_STORAGE_KEY = "exam_consultant_gemini_api_key";
+    const LOGO_STORAGE_KEY = "exam_consultant_logo_dataurl";
+
+    const $ = (id) => document.getElementById(id);
+    const flowStatus = $("flowStatus");
+    const flowHint = $("flowHint");
+    const scopeStatus = $("scopeStatus");
+    const examStatus = $("examStatus");
+    const wrongStatus = $("wrongStatus");
+    const genStatus = $("genStatus");
+    const tbody = $("questionTbody");
+    const compareStatus = $("compareStatus");
+    const apiStatus = $("apiStatus");
+
+    const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+    const TIMEOUT_MS = 60000;
+    const OCR_MAX_PAGES = 10;
+    const wrongPasteZone = $("wrongPasteZone");
+    const wrongPastePreview = $("wrongPastePreview");
+    const wrongManualInput = $("wrongManualInput");
+
+    function setStep(step, message) {
+      state.step = step;
+      flowStatus.textContent = `현재 단계: ${step}단계`;
+      flowHint.textContent = message;
+    }
+
+    function toNum(v, d = 0) { const n = Number(v); return Number.isFinite(n) ? n : d; }
+    function storageGet(key) {
+      try {
+        const v = localStorage.getItem(key);
+        if (v) return v;
+      } catch (_) {}
+      try {
+        const m = document.cookie.match(new RegExp(`(?:^|; )${key}=([^;]*)`));
+        if (m && m[1]) return decodeURIComponent(m[1]);
+      } catch (_) {}
+      try {
+        const n = JSON.parse(window.name || "{}");
+        if (n && n[key]) return n[key];
+      } catch (_) {}
+      return "";
+    }
+    function storageSet(key, value) {
+      let ok = false;
+      try { localStorage.setItem(key, value || ""); ok = true; } catch (_) {}
+      try { document.cookie = `${key}=${encodeURIComponent(value || "")}; path=/; max-age=31536000`; ok = true; } catch (_) {}
+      try {
+        const n = JSON.parse(window.name || "{}");
+        n[key] = value || "";
+        window.name = JSON.stringify(n);
+        ok = true;
+      } catch (_) {}
+      return ok;
+    }
+    function loadSavedApiKey() {
+      const saved = storageGet(API_KEY_STORAGE_KEY);
+      if (saved) {
+        $("apiKey").value = saved;
+        if ($("apiKeyQuick")) $("apiKeyQuick").value = saved;
+        genStatus.textContent = "저장된 API 키를 불러왔습니다.";
+      }
+    }
+    function saveApiKey(value) {
+      return storageSet(API_KEY_STORAGE_KEY, value || "");
+    }
+    function loadSavedLogo() {
+      const saved = storageGet(LOGO_STORAGE_KEY);
+      $("brandLogo").src = saved || "data:image/gif;base64,R0lGODlhAQABAAAAACwAAAAAAQABAAA=";
+    }
+    function saveLogo(dataUrl) {
+      storageSet(LOGO_STORAGE_KEY, dataUrl || "");
+    }
+    function applyModeUI(mode) {
+      const isStudent = mode === "student";
+      const student = $("studentMode");
+      const compare = $("compareMode");
+      document.body.dataset.mode = isStudent ? "student" : "compare";
+      storageSet("exam_consultant_mode", isStudent ? "student" : "compare");
+      if (!student || !compare) return;
+      student.classList.toggle("hidden", !isStudent);
+      compare.classList.toggle("hidden", isStudent);
+      flowHint.textContent = isStudent
+        ? "\"학생 맞춤 총평 모드\"가 활성화되었습니다."
+        : "\"시험지 난이도 비교 모드\"가 활성화되었습니다.";
+    }
+
+    async function fetchGemini(apiKey, prompt, expectJson = true) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      try {
+        const res = await fetch(`${GEMINI_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: expectJson ? { temperature: 0.1, responseMimeType: "application/json" } : { temperature: 0.2 }
+          })
+        });
+        if (!res.ok) throw new Error(`Gemini API 오류 (${res.status}): ${(await res.text()).slice(0, 220)}`);
+        const data = await res.json();
+        const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("\n").trim();
+        if (!text) throw new Error("AI 응답 텍스트가 비어 있습니다.");
+        return text;
+      } catch (e) {
+        if (e.name === "AbortError") throw new Error("AI 응답 시간 초과(60초)");
+        throw e;
+      } finally { clearTimeout(timeout); }
+    }
+
+    async function ensurePdfJs() {
+      if (!window.pdfjsLib) throw new Error("pdf.js 로드 실패");
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      return window.pdfjsLib;
+    }
+
+    async function extractPdfText(file) {
+      const lib = await ensurePdfJs();
+      const bytes = await file.arrayBuffer();
+      const pdf = await lib.getDocument({ data: bytes }).promise;
+      const out = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const p = await pdf.getPage(i);
+        const content = await p.getTextContent();
+        out.push(content.items.map((it) => it.str).join(" "));
+      }
+      return out.join("\n");
+    }
+
+    async function extractPdfTextWithOCR(file, statusEl) {
+      if (!window.Tesseract) throw new Error("Tesseract 로드 실패");
+      const lib = await ensurePdfJs();
+      const bytes = await file.arrayBuffer();
+      const pdf = await lib.getDocument({ data: bytes }).promise;
+      const pages = Math.min(pdf.numPages, OCR_MAX_PAGES);
+      const out = [];
+      for (let i = 1; i <= pages; i++) {
+        statusEl.textContent = `OCR 진행 중... (${i}/${pages})`;
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2 });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+        const r = await Tesseract.recognize(canvas, "kor+eng");
+        out.push(r.data?.text || "");
+      }
+      return out.join("\n");
+    }
+
+    async function readImageWithOCR(file, statusEl) {
+      if (!window.Tesseract) throw new Error("Tesseract 로드 실패");
+      statusEl.textContent = `이미지 OCR 분석 중: ${file.name}`;
+      const r = await Tesseract.recognize(file, "kor+eng");
+      return r.data?.text || "";
+    }
+    async function readDataUrlImageWithOCR(dataUrl, statusEl, index) {
+      if (!window.Tesseract) throw new Error("Tesseract 로드 실패");
+      statusEl.textContent = `붙여넣기 이미지 OCR 분석 중... (${index})`;
+      const r = await Tesseract.recognize(dataUrl, "kor+eng");
+      return r.data?.text || "";
+    }
+
+    async function readFileText(file, statusEl) {
+      const name = file.name.toLowerCase();
+      if (name.endsWith(".txt") || name.endsWith(".md")) return await file.text();
+      if (name.endsWith(".pdf")) {
+        let t = await extractPdfText(file);
+        if ((t || "").replace(/\s+/g, "").length < 80) t = await extractPdfTextWithOCR(file, statusEl);
+        return t;
+      }
+      if ([".png", ".jpg", ".jpeg", ".webp"].some((ext) => name.endsWith(ext))) return await readImageWithOCR(file, statusEl);
+      return "";
+    }
+
+    function clean(s) { return String(s || "").replace(/\r\n/g, "\n").replace(/[ ]{2,}/g, " ").trim(); }
+    function renderWrongPastePreview() {
+      if (!wrongPastePreview) return;
+      wrongPastePreview.innerHTML = "";
+      state.wrongPastedImages.forEach((src, i) => {
+        const box = document.createElement("div");
+        box.innerHTML = `<img src="${src}" alt="오답 스크린샷 ${i + 1}" />`;
+        wrongPastePreview.appendChild(box);
+      });
+    }
+
+    function drawPie(canvas, rows) {
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const cx = 130, cy = 130, r = 82;
+      const innerR = 43;
+      const total = rows.reduce((a, b) => a + b.value, 0) || 1;
+      let a0 = -Math.PI / 2;
+      const colors = ["#0f766e", "#0284c7", "#f59e0b", "#e11d48", "#7c3aed", "#22c55e"];
+      rows.forEach((row, i) => {
+        const a1 = a0 + (row.value / total) * Math.PI * 2;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, a0, a1); ctx.closePath();
+        ctx.fillStyle = colors[i % colors.length]; ctx.fill();
+        a0 = a1;
+      });
+      ctx.beginPath();
+      ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+      ctx.fillStyle = "#ffffff";
+      ctx.fill();
+      ctx.fillStyle = "#475569";
+      ctx.font = "700 12px sans-serif";
+      ctx.fillText("유형", cx - 14, cy - 4);
+      ctx.font = "700 14px sans-serif";
+      ctx.fillText("분포", cx - 14, cy + 14);
+      ctx.font = "12px sans-serif"; ctx.fillStyle = "#1f2937";
+      rows.forEach((row, i) => {
+        ctx.fillStyle = colors[i % colors.length]; ctx.fillRect(250, 24 + i * 22, 12, 12);
+        ctx.fillStyle = "#1f2937"; ctx.fillText(`${row.label} (${row.value}%)`, 268, 34 + i * 22);
+      });
+    }
+
+    function drawBar(canvas, rows) {
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const left = 52, top = 22, cw = w - 78, ch = h - 54;
+      for (let i = 0; i <= 5; i++) {
+        const y = top + (ch * i) / 5;
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + cw, y); ctx.stroke();
+      }
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.beginPath(); ctx.moveTo(left, top); ctx.lineTo(left, top + ch); ctx.lineTo(left + cw, top + ch); ctx.stroke();
+      const max = 100;
+      const bw = 56, gap = 42;
+      rows.forEach((row, i) => {
+        const x = left + 30 + i * (bw + gap);
+        const bh = Math.max(2, (row.value / max) * (ch - 10));
+        const g = ctx.createLinearGradient(0, top + ch - bh, 0, top + ch);
+        g.addColorStop(0, "#22d3ee");
+        g.addColorStop(1, "#0284c7");
+        ctx.fillStyle = g;
+        const r = 8;
+        ctx.beginPath();
+        ctx.moveTo(x, top + ch);
+        ctx.lineTo(x, top + ch - bh + r);
+        ctx.quadraticCurveTo(x, top + ch - bh, x + r, top + ch - bh);
+        ctx.lineTo(x + bw - r, top + ch - bh);
+        ctx.quadraticCurveTo(x + bw, top + ch - bh, x + bw, top + ch - bh + r);
+        ctx.lineTo(x + bw, top + ch);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#334155"; ctx.font = "12px sans-serif";
+        ctx.fillText(row.label, x + 12, top + ch + 16);
+        ctx.font = "700 12px sans-serif";
+        ctx.fillText(`${row.value}%`, x + 10, top + ch - bh - 8);
+      });
+    }
+    function drawCompareDualBar(canvas, labels, lastVals, thisVals) {
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const left = 46, top = 24, cw = w - 70, ch = h - 56;
+      for (let i = 0; i <= 5; i++) {
+        const y = top + (ch * i) / 5;
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.beginPath(); ctx.moveTo(left, y); ctx.lineTo(left + cw, y); ctx.stroke();
+      }
+      ctx.strokeStyle = "#cbd5e1";
+      ctx.beginPath(); ctx.moveTo(left, top); ctx.lineTo(left, top + ch); ctx.lineTo(left + cw, top + ch); ctx.stroke();
+      const max = Math.max(100, ...lastVals, ...thisVals, 1);
+      const groupW = Math.max(60, (cw - 40) / labels.length);
+      labels.forEach((lb, i) => {
+        const gx = left + 20 + i * groupW;
+        const bw = 16;
+        const h1 = (lastVals[i] / max) * (ch - 14);
+        const h2 = (thisVals[i] / max) * (ch - 14);
+        const g1 = ctx.createLinearGradient(0, top + ch - h1, 0, top + ch);
+        g1.addColorStop(0, "#cbd5e1"); g1.addColorStop(1, "#94a3b8");
+        const g2 = ctx.createLinearGradient(0, top + ch - h2, 0, top + ch);
+        g2.addColorStop(0, "#2dd4bf"); g2.addColorStop(1, "#0f766e");
+        ctx.fillStyle = g1; ctx.fillRect(gx, top + ch - h1, bw, h1);
+        ctx.fillStyle = g2; ctx.fillRect(gx + bw + 6, top + ch - h2, bw, h2);
+        ctx.fillStyle = "#334155"; ctx.font = "11px sans-serif"; ctx.fillText(lb.slice(0, 8), gx - 2, top + ch + 14);
+        ctx.font = "700 10px sans-serif";
+        ctx.fillText(String(Math.round(lastVals[i])), gx - 1, top + ch - h1 - 4);
+        ctx.fillText(String(Math.round(thisVals[i])), gx + bw + 5, top + ch - h2 - 4);
+      });
+      ctx.fillStyle = "#94a3b8"; ctx.fillRect(w - 145, 14, 12, 12); ctx.fillStyle = "#334155"; ctx.fillText("작년", w - 128, 24);
+      ctx.fillStyle = "#0f766e"; ctx.fillRect(w - 88, 14, 12, 12); ctx.fillStyle = "#334155"; ctx.fillText("올해", w - 71, 24);
+    }
+
+    function drawRadar(canvas, axes) {
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const cx = w / 2, cy = h / 2, maxR = 90;
+      const keys = Object.keys(axes);
+      const vals = keys.map((k) => toNum(axes[k], 0));
+      for (let ring = 1; ring <= 5; ring++) {
+        const r = (maxR * ring) / 5;
+        ctx.beginPath();
+        keys.forEach((_, i) => {
+          const a = -Math.PI / 2 + (i * 2 * Math.PI) / keys.length;
+          const x = cx + Math.cos(a) * r;
+          const y = cy + Math.sin(a) * r;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.closePath(); ctx.strokeStyle = "#dbeafe"; ctx.stroke();
+      }
+      keys.forEach((k, i) => {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / keys.length;
+        const x = cx + Math.cos(a) * (maxR + 14);
+        const y = cy + Math.sin(a) * (maxR + 14);
+        ctx.fillStyle = "#334155"; ctx.font = "12px sans-serif"; ctx.fillText(k, x - 18, y);
+      });
+      ctx.beginPath();
+      vals.forEach((v, i) => {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / keys.length;
+        const r = (Math.max(0, Math.min(100, v)) / 100) * maxR;
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.closePath(); ctx.fillStyle = "rgba(14,165,233,0.22)"; ctx.strokeStyle = "#0284c7"; ctx.lineWidth = 2; ctx.fill(); ctx.stroke();
+      vals.forEach((v, i) => {
+        const a = -Math.PI / 2 + (i * 2 * Math.PI) / keys.length;
+        const r = (Math.max(0, Math.min(100, v)) / 100) * maxR;
+        const x = cx + Math.cos(a) * r;
+        const y = cy + Math.sin(a) * r;
+        ctx.beginPath(); ctx.arc(x, y, 3.2, 0, Math.PI * 2); ctx.fillStyle = "#0284c7"; ctx.fill();
+      });
+    }
+
+    function renderQuestionTable(questions) {
+      tbody.innerHTML = "";
+      questions.forEach((q) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${q.number}</td><td>${q.title}</td><td>${q.score}점</td><td>${q.difficulty}</td><td>${q.type}</td><td>${q.isCorrect ? "정답" : "오답"}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderReport(report) {
+      state.report = report;
+      $("sumQuestions").textContent = String(report.questions?.length || 0);
+      $("sumScore").textContent = `${state.student.score ?? "-"}점`;
+      $("sumPercentile").textContent = report.student?.achievement?.expectedPercentile || "-";
+      $("sumTopType").textContent = report.summary?.topType || "-";
+
+      renderQuestionTable(report.questions || []);
+      drawPie($("pieChart"), report.visuals?.typeScoreRate || []);
+      drawBar($("barChart"), report.visuals?.difficultyAccuracy || []);
+      drawRadar($("radarChart"), report.visuals?.coreCompetency || {
+        "독해 이해력": 0, "어휘 응용력": 0, "문법 정확성": 0, "논리적 추론력": 0, "시간 관리 능력": 0
+      });
+
+      $("reportArea").innerHTML = `
+        <h2>${state.student.name} 학생을 위한 시험 분석 및 학습 전략 보고서</h2>
+        <div class="section"><h3>1. 시험 개요</h3>
+          <p>학교/학년: ${state.student.schoolGrade}</p>
+          <p>시험 정보: ${state.student.examType}</p>
+          <p>분석 자료: 시험 범위 원문 ${state.scopeFiles.length}건, 학생 시험지 1건</p>
+        </div>
+        <div class="section"><h3>2. 시험 총평 (객관적 분석)</h3>
+          <p><strong>주요 특징 및 출제 경향:</strong> ${report.exam?.trend}</p>
+          <p><strong>종합 난이도 심층 분석:</strong> ${report.exam?.difficultyReview}</p>
+          <p><strong>대표 킬러 문항 분석:</strong></p>
+          <ul>${(report.exam?.killerQuestions || []).map((k) => `<li>${k}</li>`).join("")}</ul>
+        </div>
+        <div class="section"><h3>3. 학생 수행 능력 총평</h3>
+          <p><strong>종합 성취도:</strong> ${report.student?.achievement?.overall}</p>
+          <p><strong>총점:</strong> ${state.student.score}점 (${report.student?.achievement?.expectedPercentile || "-"})</p>
+          <p><strong>강점:</strong> ${report.student?.strength}</p>
+          <p><strong>약점:</strong> ${report.student?.weakness}</p>
+        </div>
+        <div class="section"><h3>4. 맞춤형 학습 솔루션 제안</h3>
+          <p><strong>단기 처방 (오답 정복):</strong></p>
+          <ol>${(report.solution?.shortTerm || []).map((s) => `<li>${s}</li>`).join("")}</ol>
+          <p><strong>장기 처방 (근본 역량 강화):</strong></p>
+          <ul>${(report.solution?.longTerm || []).map((s) => `<li>${s}</li>`).join("")}</ul>
+        </div>
+        <div class="section"><h3>오답 풀이 상세 해설</h3>
+          ${(report.wrongAnswerAnalysis || []).map((w) => `<p><strong>${w.question}</strong><br>정답 근거: ${w.whyCorrect}<br>오답 근거: ${w.whyWrong}</p>`).join("")}
+        </div>
+      `;
+    }
+
+    function renderCompareReport(report) {
+      state.compareReport = report;
+      $("lastDiff").textContent = report.summary?.lastYearDifficulty || "-";
+      $("thisDiff").textContent = report.summary?.thisYearDifficulty || "-";
+      $("diffDelta").textContent = report.summary?.difficultyDelta || "-";
+      $("diffTopType").textContent = report.summary?.topChangedType || "-";
+
+      const factors = report.visuals?.factorComparison || [];
+      drawCompareDualBar(
+        $("compareBar"),
+        factors.map((r) => r.label),
+        factors.map((r) => toNum(r.lastYear, 0)),
+        factors.map((r) => toNum(r.thisYear, 0))
+      );
+      const types = report.visuals?.typeDistribution || [];
+      drawCompareDualBar(
+        $("compareTypeBar"),
+        types.map((r) => r.label),
+        types.map((r) => toNum(r.lastYear, 0)),
+        types.map((r) => toNum(r.thisYear, 0))
+      );
+
+      $("compareReportArea").innerHTML = `
+        <h2>시험지 난이도 비교 분석 보고서</h2>
+        <div class="section"><h3>비교 개요</h3><p>${report.overview || ""}</p></div>
+        <div class="section"><h3>핵심 변화</h3><ul>${(report.keyChanges || []).map((x) => `<li>${x}</li>`).join("")}</ul></div>
+        <div class="section"><h3>난이도 총평</h3><p>${report.difficultyReview || ""}</p></div>
+        <div class="section"><h3>학습 전략 제안</h3><ol>${(report.studyPlan || []).map((x) => `<li>${x}</li>`).join("")}</ol></div>
+      `;
+    }
+
+    function safeParseJson(text) {
+      const fenced = text.match(/```json\s*([\s\S]*?)```/i);
+      return JSON.parse((fenced ? fenced[1] : text).trim());
+    }
+
+    async function generateFinalReport() {
+      const apiKey = clean($("apiKey").value);
+      if (!apiKey) throw new Error("Gemini API 키를 입력해 주세요.");
+      if (!state.student.name || !state.student.schoolGrade || !state.student.examType) {
+        throw new Error("학생 이름, 학교/학년, 시험 종류를 모두 입력해 주세요.");
+      }
+      if (!state.scopeFiles.length) throw new Error("시험 범위 원문 자료를 업로드해 주세요.");
+      if (!state.examFile) throw new Error("실제 시험지 파일을 업로드해 주세요.");
+      const manualWrong = clean(wrongManualInput ? wrongManualInput.value : "");
+      if (!state.wrongFiles.length && !manualWrong && !state.wrongPastedImages.length) {
+        throw new Error("오답 자료를 입력해 주세요. (파일 업로드 / 스크린샷 붙여넣기 / 수기 입력)");
+      }
+      if (!Number.isFinite(state.student.score)) throw new Error("학생 총점을 입력해 주세요.");
+
+      genStatus.textContent = "자료 텍스트 추출 중...";
+      state.scopeTexts = [];
+      for (const f of state.scopeFiles) {
+        const t = clean(await readFileText(f, genStatus));
+        if (t) state.scopeTexts.push(`[${f.name}]\n${t.slice(0, 14000)}`);
+      }
+      state.examText = clean(await readFileText(state.examFile, genStatus)).slice(0, 22000);
+      const wrongParts = [];
+      for (const f of state.wrongFiles) {
+        const t = clean(await readFileText(f, genStatus));
+        if (t) wrongParts.push(`[${f.name}]\n${t.slice(0, 12000)}`);
+      }
+      if (manualWrong) {
+        wrongParts.push(`[수기 오답 입력]\n${manualWrong}`);
+      }
+      for (let i = 0; i < state.wrongPastedImages.length; i++) {
+        const t = clean(await readDataUrlImageWithOCR(state.wrongPastedImages[i], genStatus, i + 1));
+        if (t) wrongParts.push(`[붙여넣기 스크린샷 ${i + 1} OCR]\n${t.slice(0, 12000)}`);
+      }
+      state.wrongText = wrongParts.join("\n\n");
+
+      genStatus.textContent = "AI 종합 보고서 생성 중...";
+      const prompt = `
+역할: 데이터 기반 학습 전략 컨설턴트 AI.
+반드시 JSON만 출력.
+
+입력정보:
+- 학생: ${state.student.name}
+- 학교/학년: ${state.student.schoolGrade}
+- 시험종류: ${state.student.examType}
+- 학생총점: ${state.student.score}
+- 만점: ${state.student.maxScore || 100}
+
+시험 범위 원문:
+${state.scopeTexts.join("\n\n---\n\n").slice(0, 45000)}
+
+실제 시험지:
+${state.examText}
+
+오답 자료:
+${state.wrongText}
+
+출력 스키마(JSON):
+{
+  "summary": {"topType":"..."},
+  "questions":[{"number":1,"title":"...","score":2,"difficulty":"상|중|하","type":"...","isCorrect":true}],
+  "exam": {
+    "trend":"...",
+    "difficultyReview":"...",
+    "killerQuestions":["..."]
+  },
+  "student": {
+    "achievement": {"overall":"...","expectedPercentile":"상위 XX% 예상"},
+    "strength":"...",
+    "weakness":"..."
+  },
+  "visuals": {
+    "typeScoreRate":[{"label":"대의 파악 유형","value":30},{"label":"세부 내용 이해 유형","value":20},{"label":"어법 및 어휘 유형","value":20},{"label":"논리적 추론 및 글의 구조 유형","value":25},{"label":"대화문 유형","value":5}],
+    "difficultyAccuracy":[{"label":"하","value":88},{"label":"중","value":64},{"label":"상","value":42}],
+    "coreCompetency":{"독해 이해력":72,"어휘 응용력":68,"문법 정확성":61,"논리적 추론력":58,"시간 관리 능력":55}
+  },
+  "solution": {
+    "shortTerm":["1...","2...","3..."],
+    "longTerm":["...","..."]
+  },
+  "wrongAnswerAnalysis":[{"question":"문항번호/제목","whyCorrect":"...","whyWrong":"..."}]
+}
+
+제약:
+- 킬러문항은 오답 여부가 아니라 난이도/변형기법 기준으로 선정.
+- 오답풀이는 학습자에게 명확하게.
+- visuals 퍼센트는 현실적인 값, typeScoreRate 합계는 100.
+- questions는 시험지를 가능한 범위에서 문항 단위로 분해.
+`;
+
+      const raw = await fetchGemini(apiKey, prompt, true);
+      const parsed = safeParseJson(raw);
+      if (!Array.isArray(parsed.questions) || !parsed.questions.length) throw new Error("문항 분석 결과가 비어 있습니다.");
+      renderReport(parsed);
+      genStatus.textContent = "최종 보고서 생성 완료";
+    }
+
+    async function generateCompareReport() {
+      const apiKey = clean($("apiKey").value);
+      if (!apiKey) throw new Error("Gemini API 키를 입력해 주세요.");
+      const lastFile = ($("lastYearFile").files || [])[0];
+      const thisFile = ($("thisYearFile").files || [])[0];
+      if (!thisFile) throw new Error("올해 시험지 파일을 업로드해 주세요.");
+
+      compareStatus.textContent = "시험지 텍스트 추출 중...";
+      const thisText = clean(await readFileText(thisFile, compareStatus)).slice(0, 22000);
+      const compareInfo = clean($("compareExamInfo").value) || "시험지 난이도 비교";
+      const hasLastYear = !!lastFile;
+      const lastText = hasLastYear ? clean(await readFileText(lastFile, compareStatus)).slice(0, 22000) : "";
+
+      compareStatus.textContent = "AI 난이도 비교 분석 중...";
+      const prompt = `
+역할: 시험지 난이도 비교 분석가.
+반드시 JSON만 출력.
+비교대상: ${compareInfo}
+
+[작년도 시험지]
+${lastText}
+
+[올해 시험지]
+${thisText}
+
+스키마:
+{
+  "summary":{"lastYearDifficulty":"하|중|상","thisYearDifficulty":"하|중|상","difficultyDelta":"상승/유지/하락","topChangedType":"..."},
+  "overview":"...",
+  "keyChanges":["...","...","..."],
+  "difficultyReview":"...",
+  "visuals":{
+    "factorComparison":[
+      {"label":"어휘 난도","lastYear":55,"thisYear":72},
+      {"label":"문장구조 복잡도","lastYear":52,"thisYear":70},
+      {"label":"추론 요구도","lastYear":48,"thisYear":76},
+      {"label":"함정 선택지 강도","lastYear":50,"thisYear":73},
+      {"label":"시간 압박도","lastYear":58,"thisYear":80}
+    ],
+    "typeDistribution":[
+      {"label":"대의파악","lastYear":22,"thisYear":18},
+      {"label":"세부이해","lastYear":28,"thisYear":20},
+      {"label":"어법어휘","lastYear":20,"thisYear":26},
+      {"label":"논리추론","lastYear":25,"thisYear":31},
+      {"label":"대화문","lastYear":5,"thisYear":5}
+    ]
+  },
+  "studyPlan":["...","...","..."]
+}`;
+      const singlePrompt = `
+역할: 시험지 단일 난이도 분석가.
+반드시 JSON만 출력.
+대상: ${compareInfo}
+
+[시험지]
+${thisText}
+
+스키마:
+{
+  "summary":{"lastYearDifficulty":"-","thisYearDifficulty":"하|중|상","difficultyDelta":"비교군 없음","topChangedType":"핵심 출제 영역"},
+  "overview":"시험지의 전반적 성격과 출제 경향",
+  "keyChanges":["비교군이 없어 단일 시험 총평으로 대체","고난도 문항 특성","주의할 함정 요소"],
+  "difficultyReview":"단일 시험지 기준 난이도 총평",
+  "visuals":{
+    "factorComparison":[
+      {"label":"어휘 난도","lastYear":0,"thisYear":72},
+      {"label":"문장구조 복잡도","lastYear":0,"thisYear":70},
+      {"label":"추론 요구도","lastYear":0,"thisYear":76},
+      {"label":"함정 선택지 강도","lastYear":0,"thisYear":73},
+      {"label":"시간 압박도","lastYear":0,"thisYear":80}
+    ],
+    "typeDistribution":[
+      {"label":"대의파악","lastYear":0,"thisYear":18},
+      {"label":"세부이해","lastYear":0,"thisYear":20},
+      {"label":"어법어휘","lastYear":0,"thisYear":26},
+      {"label":"논리추론","lastYear":0,"thisYear":31},
+      {"label":"대화문","lastYear":0,"thisYear":5}
+    ]
+  },
+  "studyPlan":["시험지 단일 기준 보완 학습 1","시험지 단일 기준 보완 학습 2","시험지 단일 기준 보완 학습 3"]
+}`;
+      const raw = await fetchGemini(apiKey, hasLastYear ? prompt : singlePrompt, true);
+      const parsed = safeParseJson(raw);
+      if (!hasLastYear) {
+        parsed.summary = parsed.summary || {};
+        parsed.summary.lastYearDifficulty = "-";
+        parsed.summary.difficultyDelta = parsed.summary.difficultyDelta || "비교군 없음";
+      }
+      renderCompareReport(parsed);
+      compareStatus.textContent = hasLastYear ? "난이도 비교 분석 완료" : "단일 시험 난이도 분석 완료";
+    }
+
+    // Expose critical functions explicitly for fallback/inline handlers.
+    window.generateFinalReport = generateFinalReport;
+    window.generateCompareReport = generateCompareReport;
+    window.exportResultHtml = exportResultHtml;
+
+    function exportResultHtml() {
+      const logoSrc = $("brandLogo")?.src || "";
+      const mode = $("modeSelect").value;
+      if (mode === "compare") {
+        if (!state.compareReport) { compareStatus.textContent = "먼저 난이도 비교 분석을 실행해 주세요."; return; }
+        const c1 = $("compareBar").toDataURL("image/png");
+        const c2 = $("compareTypeBar").toDataURL("image/png");
+        const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>시험지 난이도 비교 보고서</title><style>
+          body{margin:0;background:#eef2f7;color:#0f172a;font-family:"Noto Sans KR","Apple SD Gothic Neo",sans-serif}
+          .wrap{width:min(1180px,94%);margin:24px auto}
+          .hero{background:linear-gradient(130deg,#0f766e,#155e75);color:#ecfeff;border-radius:16px;padding:20px;display:flex;gap:12px;align-items:center}
+          .logo{width:64px;height:64px;border-radius:10px;object-fit:cover;background:rgba(255,255,255,.25)}
+          .panel{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:14px;margin-top:12px}
+          .charts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+          img{max-width:100%;border:1px solid #e2e8f0;border-radius:10px;background:#fff}
+          @media(max-width:900px){.charts{grid-template-columns:1fr}}
+        </style></head><body><main class="wrap"><section class="hero"><img class="logo" src="${logoSrc}"><div><h2 style="margin:0 0 6px;">시험지 난이도 비교 분석 보고서</h2><div>앱 분석 결과와 동일한 시각화 보고서</div></div></section><section class="panel">${$("compareReportArea").innerHTML}</section><section class="panel"><h3>시각화</h3><div class="charts"><img src="${c1}"><img src="${c2}"></div></section></main></body></html>`;
+        const b = new Blob([html], { type: "text/html;charset=utf-8" });
+        const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "시험지-난이도-비교-보고서.html"; document.body.appendChild(a); a.click(); a.remove();
+        compareStatus.textContent = "비교 보고서 HTML 내보내기 완료";
+        return;
+      }
+      if (!state.report) {
+        genStatus.textContent = "먼저 보고서를 생성해 주세요.";
+        return;
+      }
+      const pie = $("pieChart").toDataURL("image/png");
+      const bar = $("barChart").toDataURL("image/png");
+      const radar = $("radarChart").toDataURL("image/png");
+      const summaryHtml = $("sumQuestions") ? `
+        <div class="cards">
+          <div class="card"><div class="k">총 문항 수</div><div class="v">${$("sumQuestions").textContent}</div></div>
+          <div class="card"><div class="k">학생 총점</div><div class="v">${$("sumScore").textContent}</div></div>
+          <div class="card"><div class="k">예상 백분위</div><div class="v">${$("sumPercentile").textContent}</div></div>
+          <div class="card"><div class="k">최다 유형</div><div class="v">${$("sumTopType").textContent}</div></div>
+        </div>` : "";
+      const reportHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${state.student.name} 보고서</title><style>
+        :root{--bg:#eef2f7;--panel:#fff;--line:#d9e2ec;--ink:#0f172a;--muted:#64748b}
+        body{margin:0;background:radial-gradient(circle at 0% 0%,#dbeafe,transparent 35%),radial-gradient(circle at 100% 20%,#ccfbf1,transparent 30%),var(--bg);color:var(--ink);font-family:"Noto Sans KR","Apple SD Gothic Neo",sans-serif}
+        .wrap{width:min(1180px,94%);margin:24px auto}
+        .hero{background:linear-gradient(130deg,#0f766e,#155e75);color:#ecfeff;border-radius:16px;padding:20px;display:flex;gap:12px;align-items:center}
+        .logo{width:64px;height:64px;border-radius:10px;object-fit:cover;background:rgba(255,255,255,.25)}
+        .panel{background:var(--panel);border:1px solid #e2e8f0;border-radius:16px;padding:14px;margin-top:12px}
+        .cards{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:10px}
+        .card{border:1px solid #e2e8f0;border-radius:12px;padding:10px;background:#fafafa}.k{color:var(--muted);font-size:12px}.v{font-size:30px;font-weight:800}
+        .charts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+        img{max-width:100%;border:1px solid #e2e8f0;border-radius:10px;background:#fff}
+        table{width:100%;border-collapse:collapse;font-size:14px}th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left}th{background:#f8fafc}
+        .section{border-left:4px solid #99f6e4;padding-left:10px;margin:12px 0}
+      </style></head><body><main class="wrap"><section class="hero"><img class="logo" src="${logoSrc}"><div><h2 style="margin:0 0 6px;">${state.student.name || "학생"} 시험 분석 보고서</h2><div>앱 분석 결과와 동일한 스타일 요약</div></div></section><section class="panel">${summaryHtml}<div class="charts"><img src="${pie}" alt="파이"><img src="${bar}" alt="막대"><img src="${radar}" alt="레이더"></div><table><thead><tr><th>번호</th><th>문제 제목</th><th>배점</th><th>난이도</th><th>문제유형</th><th>정오</th></tr></thead><tbody>${tbody.innerHTML}</tbody></table></section><section class="panel report">${$("reportArea").innerHTML}</section></main></body></html>`;
+      const blob = new Blob([reportHtml], { type: "text/html;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${state.student.name || "student"}-학습전략보고서.html`;
+      document.body.appendChild(a); a.click(); a.remove();
+      genStatus.textContent = "결과 HTML 내보내기 완료";
+    }
+
+    $("startBtn").addEventListener("click", () => {
+      saveApiKey(clean($("apiKey").value));
+      state.student.name = clean($("studentName").value);
+      state.student.schoolGrade = clean($("schoolGrade").value);
+      state.student.examType = clean($("examType").value);
+      if (!state.student.name || !state.student.schoolGrade || !state.student.examType) {
+        flowHint.textContent = "학생 이름, 학교/학년, 시험 종류를 먼저 입력해 주세요.";
+        return;
+      }
+      setStep(1, "안녕하세요! 데이터 기반 학습 전략 컨설팅을 시작하겠습니다. 먼저 시험 범위 원문 자료를 업로드해주시고 '자료 업로드 완료'를 눌러주세요.");
+    });
+
+    $("scopeDoneBtn").addEventListener("click", () => {
+      state.scopeFiles = [...($("scopeFiles").files || [])];
+      if (!state.scopeFiles.length) { scopeStatus.textContent = "시험 범위 원문 자료를 한 개 이상 업로드해 주세요."; return; }
+      scopeStatus.textContent = `접수 완료: ${state.scopeFiles.length}건`;
+      setStep(2, "감사합니다. 이제 학생이 실제로 치른 시험지 파일을 업로드해주세요.");
+    });
+
+    $("examDoneBtn").addEventListener("click", () => {
+      state.examFile = ($("examFile").files || [])[0] || null;
+      if (!state.examFile) { examStatus.textContent = "실제 시험지 파일을 업로드해 주세요."; return; }
+      examStatus.textContent = `확인 완료: ${state.examFile.name}`;
+      setStep(3, "시험지 파일이 확인되었습니다. 학생 총점을 입력하고 오답 자료를 업로드한 뒤 '오답 자료 업로드 완료'를 눌러주세요.");
+    });
+
+    $("wrongDoneBtn").addEventListener("click", () => {
+      state.student.score = toNum($("totalScoreInput").value, NaN);
+      state.student.maxScore = toNum($("maxScoreInput").value, 100) || 100;
+      state.wrongFiles = [...($("wrongFiles").files || [])];
+      const manualWrong = clean(wrongManualInput ? wrongManualInput.value : "");
+      if (!Number.isFinite(state.student.score)) { wrongStatus.textContent = "총점을 입력해 주세요."; return; }
+      if (!state.wrongFiles.length && !manualWrong && !state.wrongPastedImages.length) {
+        wrongStatus.textContent = "오답 자료를 입력해 주세요. (파일/붙여넣기/수기 입력)";
+        return;
+      }
+      wrongStatus.textContent = `확인 완료: 파일 ${state.wrongFiles.length}건, 붙여넣기 ${state.wrongPastedImages.length}건${manualWrong ? ", 수기 입력 있음" : ""}`;
+      setStep(4, "모든 자료가 준비되었습니다. '종합 분석 보고서 생성'을 눌러 최종 보고서를 생성하세요.");
+    });
+
+    $("generateBtn").addEventListener("click", async () => {
+      saveApiKey(clean($("apiKey").value));
+      try { await generateFinalReport(); }
+      catch (e) { genStatus.textContent = `생성 실패: ${e.message}`; }
+    });
+
+    $("compareBtn").addEventListener("click", async () => {
+      saveApiKey(clean($("apiKey").value));
+      try { await generateCompareReport(); }
+      catch (e) { compareStatus.textContent = `비교 분석 실패: ${e.message}`; }
+    });
+    $("compareExportBtn").addEventListener("click", exportResultHtml);
+
+    $("exportBtn").addEventListener("click", exportResultHtml);
+    $("apiKey").addEventListener("input", (e) => {
+      const ok = saveApiKey(e.target.value.trim());
+      if (!ok) genStatus.textContent = "브라우저 저장소 접근이 제한되어 API 키 자동 저장이 불가합니다.";
+      if ($("apiKeyQuick")) $("apiKeyQuick").value = e.target.value.trim();
+    });
+    $("apiKey").addEventListener("change", (e) => {
+      const ok = saveApiKey(e.target.value.trim());
+      genStatus.textContent = ok ? "API 키를 로컬에 저장했습니다." : "API 키 저장 실패: 브라우저 저장소 제한";
+    });
+    $("logoInput").addEventListener("change", async (e) => {
+      const f = e.target.files?.[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        const data = String(r.result || "");
+        $("brandLogo").src = data;
+        saveLogo(data);
+      };
+      r.readAsDataURL(f);
+    });
+    $("modeSelect").addEventListener("change", (e) => applyModeUI(e.target.value));
+    $("modeSelect").addEventListener("input", (e) => applyModeUI(e.target.value));
+    if (wrongPasteZone) {
+      wrongPasteZone.addEventListener("paste", (e) => {
+        const items = e.clipboardData?.items || [];
+        let added = 0;
+        for (const it of items) {
+          if (it.type && it.type.startsWith("image/")) {
+            const f = it.getAsFile();
+            if (!f) continue;
+            const reader = new FileReader();
+            reader.onload = () => {
+              state.wrongPastedImages.push(String(reader.result || ""));
+              renderWrongPastePreview();
+              wrongStatus.textContent = `붙여넣기 이미지 ${state.wrongPastedImages.length}건 추가됨`;
+            };
+            reader.readAsDataURL(f);
+            added++;
+          }
+        }
+        if (added > 0) e.preventDefault();
+      });
+    }
+    $("saveApiBtn").addEventListener("click", () => {
+      const val = clean($("apiKeyQuick").value);
+      const ok = saveApiKey(val);
+      $("apiKey").value = val;
+      if (apiStatus) apiStatus.textContent = ok ? "API 키 저장 완료" : "API 키 저장 실패";
+    });
+    $("loadApiBtn").addEventListener("click", () => {
+      const v = storageGet(API_KEY_STORAGE_KEY);
+      $("apiKeyQuick").value = v || "";
+      $("apiKey").value = v || "";
+      if (apiStatus) apiStatus.textContent = v ? "저장된 API 키 불러오기 완료" : "저장된 API 키가 없습니다.";
+    });
+    $("clearApiBtn").addEventListener("click", () => {
+      saveApiKey("");
+      $("apiKeyQuick").value = "";
+      $("apiKey").value = "";
+      if (apiStatus) apiStatus.textContent = "저장된 API 키 삭제 완료";
+    });
+
+    const savedMode = storageGet("exam_consultant_mode");
+    if (savedMode === "student" || savedMode === "compare") $("modeSelect").value = savedMode;
+    setStep(0, "버튼 클릭으로 6단계 프로세스를 진행합니다.");
+    loadSavedApiKey();
+    loadSavedLogo();
+    applyModeUI($("modeSelect").value);
+  </script>
+  <script>
+    // Fallback binder: even if main script partially fails, these critical buttons still work.
+    (function () {
+      const $ = (id) => document.getElementById(id);
+      const KEY = "exam_consultant_gemini_api_key";
+
+      function setApiMsg(msg) {
+        const a = $("apiStatus");
+        if (a) a.textContent = msg;
+      }
+      function setCompareMsg(msg) {
+        const b = $("compareStatus");
+        if (b) b.textContent = msg;
+      }
+      function sSet(k, v) {
+        let ok = false;
+        try { localStorage.setItem(k, v || ""); ok = true; } catch (_) {}
+        try { document.cookie = k + "=" + encodeURIComponent(v || "") + "; path=/; max-age=31536000"; ok = true; } catch (_) {}
+        return ok;
+      }
+      function sGet(k) {
+        try { const v = localStorage.getItem(k); if (v) return v; } catch (_) {}
+        try {
+          const m = document.cookie.match(new RegExp("(?:^|; )" + k + "=([^;]*)"));
+          if (m && m[1]) return decodeURIComponent(m[1]);
+        } catch (_) {}
+        return "";
+      }
+
+      const saveBtn = $("saveApiBtn");
+      const loadBtn = $("loadApiBtn");
+      const clearBtn = $("clearApiBtn");
+      const compareBtn = $("compareBtn");
+
+      if (saveBtn) {
+        saveBtn.onclick = function () {
+          const quick = $("apiKeyQuick");
+          const main = $("apiKey");
+          const val = ((quick && quick.value) || (main && main.value) || "").trim();
+          const ok = sSet(KEY, val);
+          if (main) main.value = val;
+          if (quick) quick.value = val;
+          setApiMsg(ok ? "API 키 저장 완료" : "API 키 저장 실패");
+        };
+      }
+      if (loadBtn) {
+        loadBtn.onclick = function () {
+          const v = sGet(KEY);
+          const quick = $("apiKeyQuick");
+          const main = $("apiKey");
+          if (quick) quick.value = v;
+          if (main) main.value = v;
+          setApiMsg(v ? "저장된 API 키 불러오기 완료" : "저장된 API 키가 없습니다.");
+        };
+      }
+      if (clearBtn) {
+        clearBtn.onclick = function () {
+          sSet(KEY, "");
+          const quick = $("apiKeyQuick");
+          const main = $("apiKey");
+          if (quick) quick.value = "";
+          if (main) main.value = "";
+          setApiMsg("저장된 API 키 삭제 완료");
+        };
+      }
+      if (compareBtn) {
+        compareBtn.onclick = async function () {
+          setCompareMsg("난이도 비교 분석 버튼 클릭됨. 분석을 시작합니다...");
+          try {
+            if (typeof window.generateCompareReport === "function") {
+              await window.generateCompareReport();
+              setCompareMsg("난이도 비교 분석 완료");
+            } else {
+              setCompareMsg("메인 분석 함수가 로드되지 않았습니다. 새로고침(Ctrl+F5) 후 다시 시도해주세요.");
+            }
+          } catch (e) {
+            setCompareMsg("비교 분석 실패: " + (e && e.message ? e.message : String(e)));
+          }
+        };
+      }
+
+      // Auto-fill API key fields on load via fallback storage.
+      const saved = sGet(KEY);
+      if (saved) {
+        if ($("apiKeyQuick")) $("apiKeyQuick").value = saved;
+        if ($("apiKey")) $("apiKey").value = saved;
+      }
+    })();
+  </script>
+</body>
+</html>
