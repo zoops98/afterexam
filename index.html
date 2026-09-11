@@ -1,6 +1,69 @@
 ﻿<!DOCTYPE html>
 <html lang="ko">
 <head>
+<script id="gemini-aq-compat">
+(() => {
+  const nativeFetch = window.fetch.bind(window);
+  const primaryModelPath = "/models/gemini-2.5-flash:";
+  const fallbackModelPath = "/models/gemini-3.5-flash:";
+
+  const responseNeedsFallback = async (response) => {
+    if (![400, 401, 403, 404].includes(response.status)) return false;
+    let details = "";
+    try { details = (await response.clone().text()).toLowerCase(); }
+    catch (_) { return response.status === 404; }
+    if (details.includes("api key not valid") || details.includes("invalid api key")) return false;
+    return response.status === 404 ||
+      (details.includes("model") && /(not found|not supported|unavailable|permission|denied|access)/.test(details)) ||
+      details.includes("access_token_type_unsupported") ||
+      details.includes("api_key_service_blocked");
+  };
+
+  window.fetch = async (input, init) => {
+    const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    let url;
+    try { url = new URL(rawUrl, window.location.href); }
+    catch (_) { return nativeFetch(input, init); }
+    if (url.hostname !== "generativelanguage.googleapis.com") return nativeFetch(input, init);
+
+    const headers = new Headers(input instanceof Request ? input.headers : undefined);
+    if (init && init.headers) new Headers(init.headers).forEach((value, name) => headers.set(name, value));
+    const queryKey = url.searchParams.get("key") || "";
+    if (queryKey && !headers.has("x-goog-api-key")) headers.set("x-goog-api-key", queryKey);
+    if (queryKey) url.searchParams.delete("key");
+    const apiKey = (headers.get("x-goog-api-key") || queryKey).trim();
+    const requestInput = input instanceof Request ? input : url.href;
+    const requestInit = { ...(init || {}), headers };
+    const requestBackup = input instanceof Request ? input.clone() : null;
+    const response = await nativeFetch(requestInput, requestInit);
+
+    if (!/^AQ\./i.test(apiKey) || !url.pathname.includes(primaryModelPath) ||
+        !(await responseNeedsFallback(response))) return response;
+
+    const fallbackUrl = url.href.replace(primaryModelPath, fallbackModelPath);
+    console.warn("AQ 형식 키의 Gemini 2.5 Flash 접근이 제한되어 Gemini 3.5 Flash로 한 번 재시도합니다.");
+    if (!requestBackup) return nativeFetch(fallbackUrl, requestInit);
+
+    const method = requestBackup.method.toUpperCase();
+    const retryInit = {
+      method, headers, mode: requestBackup.mode, credentials: requestBackup.credentials,
+      cache: requestBackup.cache, redirect: requestBackup.redirect,
+      referrer: requestBackup.referrer, referrerPolicy: requestBackup.referrerPolicy,
+      integrity: requestBackup.integrity, keepalive: requestBackup.keepalive,
+      body: method === "GET" || method === "HEAD" ? undefined : await requestBackup.arrayBuffer(),
+    };
+    return nativeFetch(fallbackUrl, retryInit);
+  };
+
+  const updateApiKeyPlaceholder = () => {
+    document.querySelectorAll('input[placeholder*="AIza"]').forEach((input) => {
+      input.placeholder = "AIza... 또는 AQ.Ab... 로 시작하는 Gemini API 키를 입력하세요";
+    });
+  };
+  document.addEventListener("DOMContentLoaded", updateApiKeyPlaceholder);
+  new MutationObserver(updateApiKeyPlaceholder).observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>데이터 기반 학습 전략 컨설턴트 AI</title>
@@ -107,15 +170,96 @@
     body[data-mode="student"] #compareMode { display: none !important; }
     body[data-mode="compare"] #studentMode { display: none !important; }
     body[data-mode="compare"] #compareMode { display: block !important; }
+
+    /* ---- 보고서 문서(report-doc): 화면 미리보기 + 인쇄/내보내기 공용 스타일 ---- */
+    .report-doc {
+      background: #ffffff;
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      border: 1px solid #e6edf5;
+    }
+    .report-cover {
+      background: linear-gradient(135deg, var(--brand-2), var(--brand) 60%, #0d9488);
+      color: #ecfeff;
+      padding: 26px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .report-cover-brand { display: flex; align-items: center; gap: 16px; }
+    .report-logo {
+      width: 62px; height: 62px; border-radius: 14px; object-fit: cover;
+      border: 2px solid rgba(255,255,255,0.45); background: rgba(255,255,255,0.18);
+    }
+    .eyebrow {
+      display: inline-block; font-size: 0.74rem; letter-spacing: 0.08em; font-weight: 800;
+      text-transform: uppercase; color: #a7f3d0; margin-bottom: 4px;
+    }
+    .report-cover-meta h1 { margin: 0 0 4px; font-size: 1.28rem; }
+    .report-cover-sub { margin: 0; color: #d1fae5; font-size: 0.92rem; }
+    .report-date { font-size: 0.82rem; color: #d1fae5; white-space: nowrap; }
+    .report-body { padding: 24px 28px 28px; display: grid; gap: 20px; }
+    .report-stats { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .stat-card {
+      border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px;
+      background: linear-gradient(180deg, #ffffff, #f6faf9);
+    }
+    .stat-k { color: var(--muted); font-size: 0.78rem; font-weight: 700; }
+    .stat-v { font-size: 1.32rem; font-weight: 800; margin-top: 4px; color: var(--brand-2); }
+    .report-charts { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .report-charts figure {
+      margin: 0; border: 1px solid #e2e8f0; border-radius: 14px; padding: 10px; background: #fbfdff;
+    }
+    .report-charts img { width: 100%; display: block; border-radius: 8px; }
+    .report-charts figcaption { text-align: center; font-size: 0.8rem; font-weight: 700; color: #334155; margin-top: 6px; }
+    .report-block { border: 1px solid #e6edf5; border-radius: 14px; padding: 18px 20px; background: #fff; }
+    .report-block h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font-size: 1.02rem; color: #0f172a; }
+    .report-block h2 .num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; border-radius: 8px; background: var(--brand);
+      color: #fff; font-size: 0.78rem; font-weight: 800; flex: none;
+    }
+    .report-block p { margin: 0 0 8px; line-height: 1.7; }
+    .report-block ul, .report-block ol { margin: 6px 0 0; padding-left: 20px; line-height: 1.7; }
+    .callout { border-left: 4px solid var(--brand); background: #f0fdfa; border-radius: 0 10px 10px 0; padding: 10px 14px; margin: 8px 0; }
+    .wrong-item { border: 1px solid #fde68a; background: #fffbeb; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; }
+    .wrong-item .wrong-q { font-weight: 800; color: #92400e; margin-bottom: 6px; }
+    .wrong-item .wrong-row { font-size: 0.9rem; line-height: 1.6; margin: 2px 0; }
+    .report-table-wrap table { margin-top: 0; }
+    .ok-cell { color: var(--ok); font-weight: 700; }
+    .bad-cell { color: var(--danger); font-weight: 700; }
+    .report-footer { padding: 14px 28px 24px; text-align: center; color: var(--muted); font-size: 0.8rem; border-top: 1px dashed #e2e8f0; margin-top: 4px; }
+
     @media (max-width: 840px) {
       .grid2 { grid-template-columns: 1fr; }
       .api-tools { grid-template-columns: 1fr; }
+      .report-stats { grid-template-columns: repeat(2, 1fr); }
+      .report-charts { grid-template-columns: 1fr; }
+      .report-cover { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* ---- A4 인쇄 규격 ---- */
+    @page { size: A4; margin: 14mm 12mm; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff !important; }
+      .wrap { width: auto; margin: 0; }
+      .report-host { box-shadow: none; border: none; padding: 0; background: none; }
+      .report-doc { box-shadow: none; border: none; border-radius: 0; }
+      .report-block, .wrong-item, .stat-card { break-inside: avoid; page-break-inside: avoid; }
+      table { break-inside: auto; }
+      tr { break-inside: avoid; page-break-inside: avoid; }
+      thead { display: table-header-group; }
+      img { break-inside: avoid; }
     }
   </style>
 </head>
 <body>
   <main class="wrap">
-    <section class="hero">
+    <section class="hero no-print">
       <div class="hero-row">
         <img id="brandLogo" class="logo" alt="로고" />
         <div class="hero-text">
@@ -125,7 +269,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel no-print">
       <h3 class="title">모드 선택 및 로고</h3>
       <div class="grid2">
         <div class="mode-card mode-stack">
@@ -156,7 +300,7 @@
     </section>
 
     <section id="studentMode">
-    <section class="panel">
+    <section class="panel no-print">
       <h3 class="title">1) 기본 정보 및 시작</h3>
       <div class="grid2">
         <div class="field"><label for="studentName">학생 이름</label><input id="studentName" placeholder="예: 홍길동" /></div>
@@ -171,7 +315,7 @@
       <div class="hint" id="flowHint">"시작" 버튼을 누르면 1단계를 시작합니다.</div>
     </section>
 
-    <section class="panel">
+    <section class="panel no-print">
       <h3 class="title">2) 시험 범위 원문 자료 업로드</h3>
       <div class="drop">
         <input type="file" id="scopeFiles" multiple accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" />
@@ -183,7 +327,7 @@
       <div class="status" id="scopeStatus"></div>
     </section>
 
-    <section class="panel">
+    <section class="panel no-print">
       <h3 class="title">3) 실제 시험지 업로드</h3>
       <div class="drop">
         <input type="file" id="examFile" accept=".pdf,.txt,.md,.png,.jpg,.jpeg,.webp" />
@@ -194,7 +338,7 @@
       <div class="status" id="examStatus"></div>
     </section>
 
-    <section class="panel">
+    <section class="panel no-print">
       <h3 class="title">4) 점수 및 오답 자료 업로드</h3>
       <div class="grid2">
         <div class="field"><label for="totalScoreInput">학생 총점</label><input id="totalScoreInput" type="number" min="0" step="0.1" placeholder="예: 76" /></div>
@@ -214,42 +358,43 @@
       <div class="status" id="wrongStatus"></div>
     </section>
 
-    <section class="panel">
+    <section class="panel no-print">
       <h3 class="title">5) 최종 보고서 생성</h3>
       <div class="row">
         <button class="primary" id="generateBtn">종합 분석 보고서 생성</button>
         <button class="secondary" id="exportBtn">결과 HTML 내보내기</button>
+        <button class="secondary" id="printBtn" type="button">보고서 인쇄 / PDF 저장</button>
       </div>
       <div class="status" id="genStatus"></div>
-      <div class="hint">Mermaid 없이 CSS/JavaScript 기반 차트로 시각화합니다.</div>
+      <div class="hint">Mermaid 없이 CSS/JavaScript 기반 차트로 시각화합니다. 보고서는 A4 규격으로 인쇄/저장됩니다.</div>
     </section>
 
-    <section class="panel">
-      <h3 class="title">요약 지표</h3>
-      <div class="cards">
+    <section class="panel report-host">
+      <h3 class="title no-print">요약 지표 (실시간 대시보드)</h3>
+      <div class="cards no-print">
         <div class="card"><div class="k">총 문항 수</div><div class="v" id="sumQuestions">0</div></div>
         <div class="card"><div class="k">학생 총점</div><div class="v" id="sumScore">-</div></div>
         <div class="card"><div class="k">예상 백분위</div><div class="v" id="sumPercentile">-</div></div>
         <div class="card"><div class="k">최다 유형</div><div class="v" id="sumTopType">-</div></div>
       </div>
 
-      <div class="charts" style="margin-top:12px;">
+      <div class="charts no-print" style="margin-top:12px;">
         <div class="chart-box"><h4>그래프 1) 문제 유형별 득점률 (파이)</h4><canvas id="pieChart" width="500" height="260"></canvas></div>
         <div class="chart-box"><h4>그래프 2) 난이도별 정답률 (막대)</h4><canvas id="barChart" width="500" height="260"></canvas></div>
         <div class="chart-box"><h4>인포그래픽 3) 핵심 역량 진단 (레이더)</h4><canvas id="radarChart" width="500" height="260"></canvas></div>
       </div>
 
-      <table>
+      <table class="no-print">
         <thead><tr><th>번호</th><th>문제 제목</th><th>배점</th><th>난이도</th><th>문제유형</th><th>정오</th></tr></thead>
         <tbody id="questionTbody"></tbody>
       </table>
 
-      <article class="report" id="reportArea"></article>
+      <article class="report" id="reportArea" style="margin-top:16px;"></article>
     </section>
     </section>
 
     <section id="compareMode" class="hidden">
-      <section class="panel">
+      <section class="panel no-print">
         <h3 class="title">시험지 난이도 비교 (작년 vs 올해)</h3>
         <div class="field"><label for="compareExamInfo">시험 정보</label><input id="compareExamInfo" placeholder="예: 감일고 1학년 영어 중간고사 비교" /></div>
         <div class="grid2" style="margin-top:8px;">
@@ -265,22 +410,23 @@
         <div class="row" style="margin-top:10px;">
           <button class="primary" id="compareBtn">난이도 비교 분석</button>
           <button class="secondary" id="compareExportBtn">비교 결과 HTML 내보내기</button>
+          <button class="secondary" id="comparePrintBtn" type="button">보고서 인쇄 / PDF 저장</button>
         </div>
         <div class="status" id="compareStatus"></div>
       </section>
 
-      <section class="panel">
-        <div class="cards">
+      <section class="panel report-host">
+        <div class="cards no-print">
           <div class="card"><div class="k">작년도 체감 난이도</div><div class="v" id="lastDiff">-</div></div>
           <div class="card"><div class="k">올해 체감 난이도</div><div class="v" id="thisDiff">-</div></div>
           <div class="card"><div class="k">난이도 변화</div><div class="v" id="diffDelta">-</div></div>
           <div class="card"><div class="k">변화 핵심 유형</div><div class="v" id="diffTopType">-</div></div>
         </div>
-        <div class="charts" style="margin-top:12px;">
+        <div class="charts no-print" style="margin-top:12px;">
           <div class="chart-box"><h4>난이도 요소 점수 비교</h4><canvas id="compareBar" width="500" height="260"></canvas></div>
           <div class="chart-box"><h4>유형 분포 비교</h4><canvas id="compareTypeBar" width="500" height="260"></canvas></div>
         </div>
-        <article class="report" id="compareReportArea"></article>
+        <article class="report" id="compareReportArea" style="margin-top:16px;"></article>
       </section>
     </section>
   </main>
@@ -333,7 +479,10 @@
 
     const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
     const TIMEOUT_MS = 60000;
+    const LONG_TIMEOUT_MS = 240000; // 문항이 많은 종합 보고서/비교 총평 생성처럼 응답이 긴 요청용
     const OCR_MAX_PAGES = 20;
+    const EXAM_OCR_MAX_PAGES = 40; // 페이지별로 나누어 API를 호출하므로 시험지 자체는 더 넉넉하게 허용
+    const STANDARD_TYPES = ["대의 파악 유형", "세부 내용 이해 유형", "어법 및 어휘 유형", "논리적 추론 및 글의 구조 유형", "대화문 유형"];
     const wrongPasteZone = $("wrongPasteZone");
     const wrongPastePreview = $("wrongPastePreview");
     const wrongManualInput = $("wrongManualInput");
@@ -404,13 +553,13 @@
         : "\"시험지 난이도 비교 모드\"가 활성화되었습니다.";
     }
 
-    async function fetchGemini(apiKey, prompt, expectJson = true) {
+    async function fetchGemini(apiKey, prompt, expectJson = true, timeoutMs = TIMEOUT_MS) {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const res = await fetch(GEMINI_ENDPOINT, {
+        const res = await fetch(`${GEMINI_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey.trim() },
+          headers: { "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: prompt }] }],
@@ -423,7 +572,7 @@
         if (!text) throw new Error("AI 응답 텍스트가 비어 있습니다.");
         return text;
       } catch (e) {
-        if (e.name === "AbortError") throw new Error("AI 응답 시간 초과(60초)");
+        if (e.name === "AbortError") throw new Error(`AI 응답 시간 초과(${Math.round(timeoutMs / 1000)}초). 문항 수가 많거나 자료가 길면 시간이 더 걸릴 수 있습니다. 잠시 후 다시 시도해 주세요.`);
         throw e;
       } finally { clearTimeout(timeout); }
     }
@@ -447,23 +596,81 @@
       return out.join("\n");
     }
 
+    // 스캔본이 90/180/270도로 회전되어 있으면 OCR 인식률이 크게 떨어지므로
+    // 캔버스를 회전시켜 별도 캔버스로 그려주는 헬퍼.
+    function rotateCanvas(srcCanvas, degrees) {
+      if (degrees === 0) return srcCanvas;
+      const swapped = degrees === 90 || degrees === 270;
+      const w = srcCanvas.width, h = srcCanvas.height;
+      const out = document.createElement("canvas");
+      out.width = swapped ? h : w;
+      out.height = swapped ? w : h;
+      const ctx = out.getContext("2d");
+      ctx.save();
+      ctx.translate(out.width / 2, out.height / 2);
+      ctx.rotate((degrees * Math.PI) / 180);
+      ctx.drawImage(srcCanvas, -w / 2, -h / 2);
+      ctx.restore();
+      return out;
+    }
+    // 저해상도 축소본으로 0/90/180/270도 회전본을 빠르게 OCR 돌려보고,
+    // 신뢰도(confidence)가 가장 높은 회전각을 찾는다.
+    async function detectBestRotation(srcCanvas) {
+      const probeScale = Math.min(1, 480 / Math.max(srcCanvas.width, srcCanvas.height));
+      const probe = document.createElement("canvas");
+      probe.width = Math.max(1, Math.round(srcCanvas.width * probeScale));
+      probe.height = Math.max(1, Math.round(srcCanvas.height * probeScale));
+      probe.getContext("2d").drawImage(srcCanvas, 0, 0, probe.width, probe.height);
+      let best = { degrees: 0, confidence: -1 };
+      for (const degrees of [0, 90, 180, 270]) {
+        try {
+          const rotated = rotateCanvas(probe, degrees);
+          const r = await Tesseract.recognize(rotated, "kor+eng");
+          const confidence = toNum(r.data?.confidence, 0);
+          if (confidence > best.confidence) best = { degrees, confidence };
+        } catch (_) { /* 회전 각 하나 실패해도 나머지로 계속 진행 */ }
+      }
+      return best.degrees;
+    }
+    async function renderPdfPageToCanvas(page, scale) {
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      return canvas;
+    }
+    // 스캔 문서는 보통 전체가 같은 방향으로 찍히므로, 페이지마다 4방향을 다시 확인하면
+    // 시간이 페이지 수만큼 배로 늘어난다(느려짐 -> 파일 핸들 만료/시간초과의 원인이 되기도 함).
+    // 문서당 한 번만(첫 페이지 기준) 회전을 감지해 모든 페이지에 재사용한다.
+    async function detectDocumentRotation(pdf) {
+      try {
+        const page = await pdf.getPage(1);
+        const canvas = await renderPdfPageToCanvas(page, 1);
+        return await detectBestRotation(canvas);
+      } catch (_) {
+        return 0;
+      }
+    }
+    async function ocrPdfPage(page, knownRotation) {
+      const canvas = await renderPdfPageToCanvas(page, 2);
+      const rotation = Number.isFinite(knownRotation) ? knownRotation : await detectBestRotation(canvas);
+      const finalCanvas = rotateCanvas(canvas, rotation);
+      const r = await Tesseract.recognize(finalCanvas, "kor+eng");
+      return r.data?.text || "";
+    }
     async function extractPdfTextWithOCR(file, statusEl) {
       if (!window.Tesseract) throw new Error("Tesseract 로드 실패");
       const lib = await ensurePdfJs();
       const bytes = await file.arrayBuffer();
       const pdf = await lib.getDocument({ data: bytes }).promise;
       const pages = Math.min(pdf.numPages, OCR_MAX_PAGES);
+      const docRotation = await detectDocumentRotation(pdf);
       const out = [];
       for (let i = 1; i <= pages; i++) {
         statusEl.textContent = `OCR 진행 중... (${i}/${pages})`;
         const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 2 });
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-        await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-        const r = await Tesseract.recognize(canvas, "kor+eng");
-        out.push(r.data?.text || "");
+        out.push(await ocrPdfPage(page, docRotation));
       }
       return out.join("\n");
     }
@@ -472,6 +679,30 @@
       let ocrText = "";
       try { ocrText = await extractPdfTextWithOCR(file, statusEl); } catch (_) {}
       return [layerText, ocrText].filter(Boolean).join("\n");
+    }
+    // 시험지 문항 추출 전용: 페이지 경계를 유지한 채(페이지별 배열로) 텍스트를 추출한다.
+    // 이렇게 해야 문항수가 많은 시험지도 한 번의 프롬프트 글자수 제한에 걸리지 않고
+    // 페이지 단위로 나누어 AI에 넘길 수 있다.
+    async function extractPdfPagesHybridText(file, statusEl) {
+      const lib = await ensurePdfJs();
+      const bytes = await file.arrayBuffer();
+      const pdf = await lib.getDocument({ data: bytes }).promise;
+      const total = pdf.numPages;
+      const ocrPages = Math.min(total, EXAM_OCR_MAX_PAGES);
+      const docRotation = ocrPages > 0 && window.Tesseract ? await detectDocumentRotation(pdf) : 0;
+      const pagesText = [];
+      for (let i = 1; i <= total; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        const layerText = content.items.map((it) => it.str).join(" ");
+        let ocrText = "";
+        if (i <= ocrPages && window.Tesseract) {
+          statusEl.textContent = `시험지 OCR 진행 중... (${i}/${ocrPages}페이지)`;
+          try { ocrText = await ocrPdfPage(page, docRotation); } catch (_) { /* 레이어 텍스트만이라도 사용 */ }
+        }
+        pagesText.push(clean([layerText, ocrText].filter(Boolean).join("\n")));
+      }
+      return pagesText;
     }
 
     async function readImageWithOCR(file, statusEl) {
@@ -487,12 +718,26 @@
       return r.data?.text || "";
     }
 
+    // 브라우저가 오래 걸리는 처리 도중 파일 핸들을 회수하면 "A requested file or
+    // directory could not be found..." 같은 원인 불명 오류가 나는데, 사용자가 바로
+    // 행동할 수 있도록 메시지를 번역해준다.
+    function toFriendlyFileError(e, fileName) {
+      const msg = String(e?.message || e || "");
+      if (/could not be found|NotFoundError|NotReadableError|The object could not be found/i.test(msg)) {
+        return new Error(`"${fileName}" 파일 접근이 만료되었습니다. 처리 시간이 길어지면 브라우저가 파일 핸들을 해제할 수 있습니다. 해당 파일을 다시 선택한 뒤 다시 시도해 주세요.`);
+      }
+      return e instanceof Error ? e : new Error(msg);
+    }
     async function readFileText(file, statusEl) {
-      const name = file.name.toLowerCase();
-      if (name.endsWith(".txt") || name.endsWith(".md")) return await file.text();
-      if (name.endsWith(".pdf")) return await extractPdfHybridText(file, statusEl);
-      if ([".png", ".jpg", ".jpeg", ".webp"].some((ext) => name.endsWith(ext))) return await readImageWithOCR(file, statusEl);
-      return "";
+      try {
+        const name = file.name.toLowerCase();
+        if (name.endsWith(".txt") || name.endsWith(".md")) return await file.text();
+        if (name.endsWith(".pdf")) return await extractPdfHybridText(file, statusEl);
+        if ([".png", ".jpg", ".jpeg", ".webp"].some((ext) => name.endsWith(ext))) return await readImageWithOCR(file, statusEl);
+        return "";
+      } catch (e) {
+        throw toFriendlyFileError(e, file.name);
+      }
     }
 
     function clean(s) { return String(s || "").replace(/\r\n/g, "\n").replace(/[ ]{2,}/g, " ").trim(); }
@@ -541,6 +786,27 @@
       ];
     }
     function buildTypeDistribution(text) {
+      const parsed = parseQuestionListFromText(text, 0);
+      if (parsed.length >= 5) {
+        const buckets = {
+          "대의파악": 0,
+          "세부이해": 0,
+          "어법어휘": 0,
+          "논리추론": 0,
+          "대화문": 0
+        };
+        parsed.forEach((q) => {
+          const t = normalizeQuestionTypeLabel(q.type);
+          if (t === "대의 파악 유형") buckets["대의파악"] += 1;
+          else if (t === "세부 내용 이해 유형") buckets["세부이해"] += 1;
+          else if (t === "어법 및 어휘 유형") buckets["어법어휘"] += 1;
+          else if (t === "논리적 추론 및 글의 구조 유형") buckets["논리추론"] += 1;
+          else if (t === "대화문 유형") buckets["대화문"] += 1;
+          else buckets["논리추론"] += 1;
+        });
+        const total = parsed.length || 1;
+        return Object.entries(buckets).map(([label, v]) => ({ label, value: Math.round((v / total) * 100) }));
+      }
       const t = clean(text);
       const counts = {
         "대의파악": countMatches(t, [/주제/g, /제목/g, /목적/g, /요지/g, /주장/g, /요약/g]),
@@ -552,11 +818,303 @@
       const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
       return Object.entries(counts).map(([label, v]) => ({ label, value: Math.round((v / total) * 100) }));
     }
+    function normalizeQuestionTypeLabel(type) {
+      const t = clean(type);
+      if (!t) return "기타";
+      if (/주제|제목|요지|요약|목적|주장|main idea|title|topic|purpose|summary|claim/i.test(t)) return "대의 파악 유형";
+      if (/일치|불일치|세부|내용|지칭|대화.*내용|detail|according to|not true|true|refer to|implies/i.test(t)) return "세부 내용 이해 유형";
+      if (/어법|어휘|문맥|의미|밑줄|영영|grammar|vocab|vocabulary|word|underline|meaning|usage/i.test(t)) return "어법 및 어휘 유형";
+      if (/빈칸|순서|삽입|무관한 문장|추론|흐름|연결사|논리|inference|infer|blank|order|insert|flow|coherence|logic/i.test(t)) return "논리적 추론 및 글의 구조 유형";
+      if (/대화문|화자|응답|dialogue|conversation|speaker|response/i.test(t)) return "대화문 유형";
+      return t;
+    }
+    function classifyQuestionTypeByTitle(title) {
+      const t = normalizeQuestionTypeLabel(title);
+      return STANDARD_TYPES.includes(t) ? t : "미분류";
+    }
+    function inferDetailedType(title) {
+      const t = clean(title);
+      if (/서답형|논술형|서술형/i.test(t)) return "서답형/논술형";
+      if (/주제|topic|main idea/i.test(t)) return "주제";
+      if (/제목|title/i.test(t)) return "제목";
+      if (/요약|summary/i.test(t)) return "요약문 완성";
+      if (/목적|purpose/i.test(t)) return "글의 목적";
+      if (/주장|claim/i.test(t)) return "글의 주장";
+      if (/일치하지 않는|불일치|not true/i.test(t)) return "내용 불일치";
+      if (/일치|true|according to/i.test(t)) return "내용 일치";
+      if (/지칭|refer to/i.test(t)) return "지칭 추론";
+      if (/어법|grammar/i.test(t)) return "어법";
+      if (/어휘|vocab|word|문맥상 의미|의미/i.test(t)) return "어휘";
+      if (/빈칸|blank/i.test(t)) return "빈칸 추론";
+      if (/순서|order/i.test(t)) return "글의 순서";
+      if (/삽입|insert/i.test(t)) return "문장 삽입";
+      if (/무관한 문장|irrelevant/i.test(t)) return "무관한 문장";
+      if (/흐름|flow|논리|coherence/i.test(t)) return "글의 흐름";
+      if (/대화|dialogue|conversation|응답|response/i.test(t)) return "대화문";
+      return "기타";
+    }
+    function buildQuestionSignature(title) {
+      const t = clean(title);
+      return {
+        hasEssay: /서답형|논술형|서술형/i.test(t),
+        hasBlank: /빈칸|blank/i.test(t),
+        hasInsert: /삽입|insert/i.test(t),
+        hasOrder: /순서|order/i.test(t),
+        hasGrammar: /어법|grammar/i.test(t),
+        hasVocab: /어휘|vocab|word|문맥상 의미|의미/i.test(t),
+        hasConsistency: /일치|불일치|not true|true/i.test(t),
+        hasInference: /추론|infer|흐름|논리|coherence/i.test(t),
+        hasDialogue: /대화|dialogue|conversation|응답|response/i.test(t)
+      };
+    }
+    function estimateDifficultyByTitle(title) {
+      const t = clean(title);
+      if (/서술|논리|추론|빈칸|삽입|순서|무관한 문장|어법/.test(t)) return "상";
+      if (/일치|불일치|세부|대화|요약|제목|주제|목적/.test(t)) return "중";
+      return "하";
+    }
+    const QUESTION_IMPERATIVE_RE = /(고르시오|답하시오|쓰시오)\.?/;
+    function extractCleanQuestionTitle(rawJoined) {
+      const t = clean(rawJoined).replace(/^\d{1,2}\s*[\.\)]\s*/, "");
+      // 문두는 보통 물음표(?) 또는 "~고르시오/답하시오/쓰시오." 로 끝난다.
+      // 둘 중 더 먼저 나오는 지점에서 잘라, 뒤따르는 지문/스크립트 본문이 섞이지 않게 한다.
+      const qIdx = t.indexOf("?");
+      const imp = QUESTION_IMPERATIVE_RE.exec(t);
+      const impEnd = imp ? imp.index + imp[0].length : -1;
+      const cutCandidates = [qIdx >= 0 ? qIdx + 1 : -1, impEnd].filter((n) => n > 0);
+      if (cutCandidates.length) {
+        const cut = Math.min(...cutCandidates);
+        if (cut <= 160) return t.slice(0, cut).trim();
+      }
+      return t.length > 90 ? `${t.slice(0, 90).trim()}...` : t;
+    }
+    function extractPlausibleScore(rawText, fallback) {
+      const matches = [...String(rawText || "").matchAll(/\[\s*([0-9]+(?:\.[0-9]+)?)\s*점\s*\]/g)];
+      for (const m of matches) {
+        const v = toNum(m[1], NaN);
+        if (Number.isFinite(v) && v > 0 && v <= 10) return v;
+      }
+      return fallback;
+    }
+    function parseQuestionListFromText(text, defaultScore) {
+      const src = clean(text).replace(/[ \t]+/g, " ");
+      if (!src) return [];
+      const rows = [];
+      const lines = src.split("\n").map((x) => x.trim()).filter(Boolean);
+      const qLineIdx = [];
+      const qLineRe = /^(\d{1,2})\s*[\.\)]\s*(.+)$/;
+      const qLineLooseRe = /^(\d{1,2})\s+(.+)$/;
+      const questionCueRe = /고르시오|것은\?|가장 적절한|일치|불일치|어법|어휘|빈칸|순서|삽입|흐름|주제|제목|목적|요약|대화|문맥상/;
+      const ignoreLineRe = /학년|페이지|면 중|다음 면에 계속|듣고 답하는 문제|방송됩니다|지시에 따라 답/;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        let m = line.match(qLineRe);
+        if (!m) {
+          const mm = line.match(qLineLooseRe);
+          if (mm && questionCueRe.test(mm[2])) m = mm;
+        }
+        if (!m) continue;
+        const num = Number(m[1]);
+        const rest = clean(m[2]);
+        if (!Number.isFinite(num) || num < 1 || num > 60) continue;
+        if (!rest || ignoreLineRe.test(rest)) continue;
+        qLineIdx.push({ lineIndex: i, num, titleHead: rest });
+      }
+
+      for (let i = 0; i < qLineIdx.length; i++) {
+        const cur = qLineIdx[i];
+        const next = qLineIdx[i + 1];
+        const end = next ? next.lineIndex : Math.min(lines.length, cur.lineIndex + 8);
+        const chunkLines = lines.slice(cur.lineIndex, end);
+        const rawChunk = clean(chunkLines.join(" "));
+        const title = extractCleanQuestionTitle(rawChunk);
+        if (!title) continue;
+        const scoreVal = extractPlausibleScore(rawChunk, defaultScore);
+        rows.push({
+          number: cur.num,
+          title,
+          score: scoreVal,
+          difficulty: estimateDifficultyByTitle(title),
+          type: classifyQuestionTypeByTitle(title)
+        });
+      }
+
+      // [23~24], [15-16] 같은 지문 범위 헤더를 문항 메타로 연결
+      const rangeMap = new Map();
+      for (const line of lines) {
+        const m = line.match(/\[\s*(\d{1,2})\s*[~\-]\s*(\d{1,2})\s*\]/);
+        if (!m) continue;
+        const a = Number(m[1]), b = Number(m[2]);
+        if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+        const lo = Math.min(a, b), hi = Math.max(a, b);
+        for (let n = lo; n <= hi; n++) rangeMap.set(n, `${lo}-${hi}`);
+      }
+
+      for (const r of rows) {
+        const g = rangeMap.get(r.number);
+        if (g) r.passageGroup = g;
+      }
+
+      const essayRe = /(?:서답형|논술형)\s*(\d{1,2})/g;
+      let em;
+      while ((em = essayRe.exec(src)) !== null) {
+        const essayNo = Number(em[1]);
+        if (!Number.isFinite(essayNo)) continue;
+        if (rows.some((r) => r.number === essayNo)) continue;
+        const section = src.slice(em.index, Math.min(src.length, em.index + 220));
+        const title = extractCleanQuestionTitle(section) || `서답형 ${essayNo}`;
+        const scoreVal = extractPlausibleScore(section, defaultScore);
+        rows.push({
+          number: essayNo,
+          title,
+          score: scoreVal,
+          difficulty: "상",
+          type: classifyQuestionTypeByTitle(title + " 서답형"),
+          passageGroup: null
+        });
+      }
+      if (rows.length >= 5) {
+        const uniq = new Map();
+        rows.forEach((r) => { if (!uniq.has(r.number)) uniq.set(r.number, r); });
+        return [...uniq.values()].sort((a, b) => a.number - b.number);
+      }
+      return [];
+    }
+    function fallbackQuestionListFromTypeDistribution(typeDist, baseLabel) {
+      const totalQ = 25;
+      const list = [];
+      let no = 1;
+      typeDist.forEach((t) => {
+        const cnt = Math.max(0, Math.round((toNum(t.value, 0) / 100) * totalQ));
+        for (let i = 0; i < cnt; i++) {
+          list.push({
+            number: no++,
+            title: `${baseLabel} 추정 문항 ${no - 1}`,
+            score: 0,
+            difficulty: "중",
+            type: classifyQuestionTypeByTitle(t.label)
+          });
+        }
+      });
+      return list;
+    }
+    function sanitizeQuestionTypeRows(rows) {
+      return (rows || []).map((q) => {
+        const number = Number(q.number);
+        const title = clean(q.title || "");
+        const typeMajor = classifyQuestionTypeByTitle(q.type || title);
+        const typeDetail = inferDetailedType(q.type || title);
+        const difficulty = /^(상|중|하)$/.test(clean(q.difficulty || "")) ? clean(q.difficulty || "") : estimateDifficultyByTitle(title);
+        return {
+          number: Number.isFinite(number) ? number : null,
+          title,
+          score: toNum(q.score, 0),
+          difficulty,
+          type: typeMajor,
+          typeMajor,
+          typeDetail,
+          signature: buildQuestionSignature(title),
+          passageGroup: q.passageGroup || null
+        };
+      }).filter((q) => q.number !== null && q.title);
+    }
+    function getQuestionContextSnippet(fullText, number, radius = 420) {
+      const t = clean(fullText || "");
+      if (!t) return "";
+      const re = new RegExp(`(?:^|\\s)${number}\\s*(?:[\\.\\)]\\s*|\\s+)`, "g");
+      const m = re.exec(t);
+      if (!m) return "";
+      const start = Math.max(0, m.index - 60);
+      const end = Math.min(t.length, m.index + radius);
+      return t.slice(start, end);
+    }
+    async function repairQuestionRowsWithGemini(apiKey, rows, fullText, statusEl, label) {
+      const looksGarbled = (t) => {
+        const s = clean(t || "");
+        if (s.length > 85 || s.endsWith("...")) return true;
+        return /[®@{}|™∴◎¡†‡§¶]/.test(s);
+      };
+      const targets = rows.filter((r) => (r.typeMajor === "미분류") || clean(r.title).length < 18 || looksGarbled(r.title)).slice(0, 14);
+      if (!targets.length) return rows;
+      const payload = targets.map((r) => ({
+        number: r.number,
+        title: r.title,
+        context: getQuestionContextSnippet(fullText, r.number, 520)
+      }));
+      statusEl.textContent = `${label} 문항 유형 보정 중...`;
+      const prompt = `
+역할: 수능 영어 문항 유형 분류기.
+아래 문항들의 typeMajor/typeDetail/title을 보정해라. title은 OCR 노이즈나 지문/스크립트 본문이 섞여 있을 수 있으니, context를 참고해 "문두(question stem)"만 40자 내외로 간결하게 정리하고 지문/대화 본문은 포함하지 마라.
+typeMajor는 다음 중 하나만 사용:
+- 대의 파악 유형
+- 세부 내용 이해 유형
+- 어법 및 어휘 유형
+- 논리적 추론 및 글의 구조 유형
+- 대화문 유형
+- 미분류
+
+문항 데이터(JSON):
+${JSON.stringify(payload)}
+
+출력(JSON):
+{"fixes":[{"number":24,"title":"보정된 제목","typeMajor":"세부 내용 이해 유형","typeDetail":"내용 불일치"}]}
+`;
+      try {
+        const raw = await fetchGemini(apiKey, prompt, true);
+        const parsed = safeParseJson(raw);
+        const fixes = Array.isArray(parsed?.fixes) ? parsed.fixes : [];
+        const byNum = new Map(fixes.map((f) => [Number(f.number), f]));
+        return rows.map((r) => {
+          const f = byNum.get(Number(r.number));
+          if (!f) return r;
+          const nextTitle = clean(f.title || r.title) || r.title;
+          const nextMajor = STANDARD_TYPES.includes(clean(f.typeMajor || "")) ? clean(f.typeMajor) : r.typeMajor;
+          const nextDetail = clean(f.typeDetail || inferDetailedType(nextTitle));
+          return {
+            ...r,
+            title: nextTitle,
+            type: nextMajor,
+            typeMajor: nextMajor,
+            typeDetail: nextDetail,
+            signature: buildQuestionSignature(nextTitle)
+          };
+        });
+      } catch (_) {
+        return rows;
+      }
+    }
+    function evaluateQuestionTypeQuality(rows) {
+      const total = rows.length;
+      const typed = rows.filter((x) => STANDARD_TYPES.includes(x.type)).length;
+      const coverage = total ? typed / total : 0;
+      return { total, typed, coverage };
+    }
+    function findMissingQuestionNumbers(rows) {
+      const nums = [...new Set((rows || []).map((r) => Number(r.number)).filter((n) => Number.isFinite(n) && n > 0))].sort((a, b) => a - b);
+      if (!nums.length) return [];
+      const max = nums[nums.length - 1];
+      const set = new Set(nums);
+      const missing = [];
+      for (let i = 1; i <= max; i++) {
+        if (!set.has(i)) missing.push(i);
+      }
+      return missing;
+    }
     function mergeTwoTypeDistributions(lastDist, thisDist) {
       const keys = ["대의파악", "세부이해", "어법어휘", "논리추론", "대화문"];
       const m1 = Object.fromEntries(lastDist.map((x) => [x.label, x.value]));
       const m2 = Object.fromEntries(thisDist.map((x) => [x.label, x.value]));
       return keys.map((k) => ({ label: k, lastYear: m1[k] || 0, thisYear: m2[k] || 0 }));
+    }
+    // AI가 직접 읽고 정리한 문항 목록(primaryRows)을 우선 사용하고,
+    // AI 응답이 다루지 못한 번호(예: 프롬프트 글자수 제한으로 잘린 뒷부분 문항)만
+    // 로컬 정규식 파서 결과(supplementRows)로 보충한다.
+    function mergeQuestionTypeLists(primaryRows, supplementRows) {
+      const map = new Map();
+      (supplementRows || []).forEach((r) => { if (r && Number.isFinite(r.number)) map.set(r.number, r); });
+      (primaryRows || []).forEach((r) => { if (r && Number.isFinite(r.number)) map.set(r.number, r); });
+      return [...map.values()].sort((a, b) => a.number - b.number);
     }
     function toLevel(score) {
       if (score >= 72) return "상";
@@ -721,52 +1279,121 @@
       tbody.innerHTML = "";
       questions.forEach((q) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${q.number}</td><td>${q.title}</td><td>${q.score}점</td><td>${q.difficulty}</td><td>${q.type}</td><td>${q.isCorrect ? "정답" : "오답"}</td>`;
+        tr.innerHTML = `<td>${formatQuestionNumberLabel(q.number)}</td><td>${q.title}</td><td>${q.score}점</td><td>${q.difficulty}</td><td>${q.type}</td><td>${q.isCorrect ? "정답" : "오답"}</td>`;
         tbody.appendChild(tr);
       });
     }
 
+    function formatKoreanDate(d) {
+      const dt = d || new Date();
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, "0");
+      const day = String(dt.getDate()).padStart(2, "0");
+      return `${y}년 ${m}월 ${day}일`;
+    }
+
     function renderReport(report) {
       state.report = report;
-      $("sumQuestions").textContent = String(report.questions?.length || 0);
+      const questions = report.questions || [];
+      $("sumQuestions").textContent = String(questions.length);
       $("sumScore").textContent = `${state.student.score ?? "-"}점`;
       $("sumPercentile").textContent = report.student?.achievement?.expectedPercentile || "-";
       $("sumTopType").textContent = report.summary?.topType || "-";
 
-      renderQuestionTable(report.questions || []);
+      renderQuestionTable(questions);
       drawPie($("pieChart"), report.visuals?.typeScoreRate || []);
       drawBar($("barChart"), report.visuals?.difficultyAccuracy || []);
       drawRadar($("radarChart"), report.visuals?.coreCompetency || {
         "독해 이해력": 0, "어휘 응용력": 0, "문법 정확성": 0, "논리적 추론력": 0, "시간 관리 능력": 0
       });
 
+      const pieImg = $("pieChart").toDataURL("image/png");
+      const barImg = $("barChart").toDataURL("image/png");
+      const radarImg = $("radarChart").toDataURL("image/png");
+      const logoSrc = $("brandLogo")?.src || "";
+
+      const questionRows = questions.map((q) => `<tr><td>${formatQuestionNumberLabel(q.number)}</td><td>${q.title}</td><td>${q.score}점</td><td>${q.difficulty}</td><td>${q.type}</td><td class="${q.isCorrect ? "ok-cell" : "bad-cell"}">${q.isCorrect ? "정답" : "오답"}</td></tr>`).join("");
+      const wrongItems = (report.wrongAnswerAnalysis || []).map((w) => `
+        <div class="wrong-item">
+          <div class="wrong-q">${w.question || ""}</div>
+          <div class="wrong-row"><strong>정답 근거</strong> ${w.whyCorrect || "-"}</div>
+          <div class="wrong-row"><strong>오답 근거</strong> ${w.whyWrong || "-"}</div>
+        </div>`).join("") || "<p>등록된 오답 문항 해설이 없습니다.</p>";
+
       $("reportArea").innerHTML = `
-        <h2>${state.student.name} 학생을 위한 시험 분석 및 학습 전략 보고서</h2>
-        <div class="section"><h3>1. 시험 개요</h3>
-          <p>학교/학년: ${state.student.schoolGrade}</p>
-          <p>시험 정보: ${state.student.examType}</p>
-          <p>분석 자료: 시험 범위 원문 ${state.scopeFiles.length}건, 학생 시험지 1건</p>
-        </div>
-        <div class="section"><h3>2. 시험 총평 (객관적 분석)</h3>
-          <p><strong>주요 특징 및 출제 경향:</strong> ${report.exam?.trend}</p>
-          <p><strong>종합 난이도 심층 분석:</strong> ${report.exam?.difficultyReview}</p>
-          <p><strong>대표 킬러 문항 분석:</strong></p>
-          <ul>${(report.exam?.killerQuestions || []).map((k) => `<li>${k}</li>`).join("")}</ul>
-        </div>
-        <div class="section"><h3>3. 학생 수행 능력 총평</h3>
-          <p><strong>종합 성취도:</strong> ${report.student?.achievement?.overall}</p>
-          <p><strong>총점:</strong> ${state.student.score}점 (${report.student?.achievement?.expectedPercentile || "-"})</p>
-          <p><strong>강점:</strong> ${report.student?.strength}</p>
-          <p><strong>약점:</strong> ${report.student?.weakness}</p>
-        </div>
-        <div class="section"><h3>4. 맞춤형 학습 솔루션 제안</h3>
-          <p><strong>단기 처방 (오답 정복):</strong></p>
-          <ol>${(report.solution?.shortTerm || []).map((s) => `<li>${s}</li>`).join("")}</ol>
-          <p><strong>장기 처방 (근본 역량 강화):</strong></p>
-          <ul>${(report.solution?.longTerm || []).map((s) => `<li>${s}</li>`).join("")}</ul>
-        </div>
-        <div class="section"><h3>오답 풀이 상세 해설</h3>
-          ${(report.wrongAnswerAnalysis || []).map((w) => `<p><strong>${w.question}</strong><br>정답 근거: ${w.whyCorrect}<br>오답 근거: ${w.whyWrong}</p>`).join("")}
+        <div class="report-doc">
+          <header class="report-cover">
+            <div class="report-cover-brand">
+              <img class="report-logo" src="${logoSrc}" alt="로고">
+              <div class="report-cover-meta">
+                <span class="eyebrow">데이터 기반 학습 전략 컨설팅 보고서</span>
+                <h1>${state.student.name} 학생 시험 분석 리포트</h1>
+                <p class="report-cover-sub">${state.student.schoolGrade} · ${state.student.examType}</p>
+              </div>
+            </div>
+            <div class="report-date">생성일 ${formatKoreanDate()}</div>
+          </header>
+          <div class="report-body">
+            <section class="report-stats">
+              <div class="stat-card"><div class="stat-k">총 문항 수</div><div class="stat-v">${questions.length}</div></div>
+              <div class="stat-card"><div class="stat-k">학생 총점</div><div class="stat-v">${state.student.score ?? "-"}점</div></div>
+              <div class="stat-card"><div class="stat-k">예상 백분위</div><div class="stat-v">${report.student?.achievement?.expectedPercentile || "-"}</div></div>
+              <div class="stat-card"><div class="stat-k">최다 유형</div><div class="stat-v">${report.summary?.topType || "-"}</div></div>
+            </section>
+
+            <section class="report-charts">
+              <figure><img src="${pieImg}" alt="문제 유형별 득점률"><figcaption>문제 유형별 득점률</figcaption></figure>
+              <figure><img src="${barImg}" alt="난이도별 정답률"><figcaption>난이도별 정답률</figcaption></figure>
+              <figure><img src="${radarImg}" alt="핵심 역량 진단"><figcaption>핵심 역량 진단</figcaption></figure>
+            </section>
+
+            <section class="report-block">
+              <h2><span class="num">01</span>시험 개요</h2>
+              <p>학교/학년: ${state.student.schoolGrade}</p>
+              <p>시험 정보: ${state.student.examType}</p>
+              <p>분석 자료: 시험 범위 원문 ${state.scopeFiles.length}건, 학생 시험지 1건</p>
+            </section>
+
+            <section class="report-block">
+              <h2><span class="num">02</span>시험 총평 (객관적 분석)</h2>
+              <p><strong>주요 특징 및 출제 경향</strong></p>
+              <div class="callout">${report.exam?.trend || "-"}</div>
+              <p><strong>종합 난이도 심층 분석</strong></p>
+              <div class="callout">${report.exam?.difficultyReview || "-"}</div>
+              <p><strong>대표 킬러 문항 분석</strong></p>
+              <ul>${(report.exam?.killerQuestions || []).map((k) => `<li>${k}</li>`).join("")}</ul>
+            </section>
+
+            <section class="report-block">
+              <h2><span class="num">03</span>학생 수행 능력 총평</h2>
+              <p><strong>종합 성취도:</strong> ${report.student?.achievement?.overall || "-"}</p>
+              <p><strong>총점:</strong> ${state.student.score}점 (${report.student?.achievement?.expectedPercentile || "-"})</p>
+              <p><strong>강점:</strong> ${report.student?.strength || "-"}</p>
+              <p><strong>약점:</strong> ${report.student?.weakness || "-"}</p>
+            </section>
+
+            <section class="report-block">
+              <h2><span class="num">04</span>맞춤형 학습 솔루션 제안</h2>
+              <p><strong>단기 처방 (오답 정복)</strong></p>
+              <ol>${(report.solution?.shortTerm || []).map((s) => `<li>${s}</li>`).join("")}</ol>
+              <p><strong>장기 처방 (근본 역량 강화)</strong></p>
+              <ul>${(report.solution?.longTerm || []).map((s) => `<li>${s}</li>`).join("")}</ul>
+            </section>
+
+            <section class="report-block report-table-wrap">
+              <h2><span class="num">05</span>문항별 상세 분석표</h2>
+              <table>
+                <thead><tr><th>번호</th><th>문제 제목</th><th>배점</th><th>난이도</th><th>문제유형</th><th>정오</th></tr></thead>
+                <tbody>${questionRows}</tbody>
+              </table>
+            </section>
+
+            <section class="report-block">
+              <h2><span class="num">06</span>오답 풀이 상세 해설</h2>
+              ${wrongItems}
+            </section>
+          </div>
+          <footer class="report-footer">본 보고서는 AI 분석 결과를 기반으로 자동 생성되었으며 참고 자료로 활용하시기 바랍니다. · ${formatKoreanDate()}</footer>
         </div>
       `;
     }
@@ -793,13 +1420,63 @@
         types.map((r) => toNum(r.thisYear, 0))
       );
 
+      const bar1Img = $("compareBar").toDataURL("image/png");
+      const bar2Img = $("compareTypeBar").toDataURL("image/png");
+      const logoSrc = $("brandLogo")?.src || "";
+      const examInfo = clean($("compareExamInfo").value) || "시험지 난이도 비교";
+
       $("compareReportArea").innerHTML = `
-        <h2>시험지 난이도 비교 분석 보고서</h2>
-        <div class="section"><h3>비교 개요</h3><p>${report.overview || ""}</p></div>
-        <div class="section"><h3>핵심 변화</h3><ul>${(report.keyChanges || []).map((x) => `<li>${x}</li>`).join("")}</ul></div>
-        <div class="section"><h3>난이도 총평</h3><p>${report.difficultyReview || ""}</p></div>
-        <div class="section"><h3>학습 전략 제안</h3><ol>${(report.studyPlan || []).map((x) => `<li>${x}</li>`).join("")}</ol></div>
+        <div class="report-doc">
+          <header class="report-cover">
+            <div class="report-cover-brand">
+              <img class="report-logo" src="${logoSrc}" alt="로고">
+              <div class="report-cover-meta">
+                <span class="eyebrow">시험지 난이도 비교 분석 보고서</span>
+                <h1>${examInfo}</h1>
+                <p class="report-cover-sub">작년도 시험지 vs 올해 시험지 비교</p>
+              </div>
+            </div>
+            <div class="report-date">생성일 ${formatKoreanDate()}</div>
+          </header>
+          <div class="report-body">
+            <section class="report-stats">
+              <div class="stat-card"><div class="stat-k">작년도 체감 난이도</div><div class="stat-v">${report.summary?.lastYearDifficulty || "-"}</div></div>
+              <div class="stat-card"><div class="stat-k">올해 체감 난이도</div><div class="stat-v">${report.summary?.thisYearDifficulty || "-"}</div></div>
+              <div class="stat-card"><div class="stat-k">난이도 변화</div><div class="stat-v">${report.summary?.difficultyDelta || "-"}</div></div>
+              <div class="stat-card"><div class="stat-k">변화 핵심 유형</div><div class="stat-v">${report.summary?.topChangedType || "-"}</div></div>
+            </section>
+
+            <section class="report-charts" style="grid-template-columns:repeat(2,minmax(0,1fr));">
+              <figure><img src="${bar1Img}" alt="난이도 요소 점수 비교"><figcaption>난이도 요소 점수 비교</figcaption></figure>
+              <figure><img src="${bar2Img}" alt="유형 분포 비교"><figcaption>유형 분포 비교</figcaption></figure>
+            </section>
+
+            <section class="report-block"><h2><span class="num">01</span>비교 개요</h2><p>${report.overview || "-"}</p></section>
+            <section class="report-block"><h2><span class="num">02</span>핵심 변화</h2><ul>${(report.keyChanges || []).map((x) => `<li>${x}</li>`).join("")}</ul></section>
+            <section class="report-block"><h2><span class="num">03</span>난이도 총평</h2><p>${report.difficultyReview || "-"}</p></section>
+            <section class="report-block"><h2><span class="num">04</span>학습 전략 제안</h2><ol>${(report.studyPlan || []).map((x) => `<li>${x}</li>`).join("")}</ol></section>
+            ${renderCompareQuestionTypeTables(report)}
+          </div>
+          <footer class="report-footer">본 보고서는 AI 분석 결과를 기반으로 자동 생성되었으며 참고 자료로 활용하시기 바랍니다. · ${formatKoreanDate()}</footer>
+        </div>
       `;
+    }
+
+    function renderCompareQuestionTypeTables(report) {
+      const thisRows = Array.isArray(report?.questionTypes?.thisYear) ? report.questionTypes.thisYear : [];
+      const lastRows = Array.isArray(report?.questionTypes?.lastYear) ? report.questionTypes.lastYear : [];
+      const missingThis = report?.missingNumbers?.thisYear || [];
+      const missingLast = report?.missingNumbers?.lastYear || [];
+      function buildMissingNote(missing) {
+        if (!missing.length) return "";
+        return `<div class="callout" style="border-left-color:#f59e0b;background:#fffbeb;">인식되지 않은 문항 번호: ${missing.join(", ")}번 (스캔/OCR 품질에 따라 일부 번호가 누락될 수 있습니다)</div>`;
+      }
+      function buildTable(num, title, rows, missing) {
+        if (!rows.length) return "";
+        const body = rows.map((q) => `<tr><td>${q.number ?? ""}</td><td>${q.title || ""}</td><td>${q.score ?? ""}${q.score !== undefined ? "점" : ""}</td><td>${q.difficulty || ""}</td><td>${q.type || "미분류"}</td></tr>`).join("");
+        return `<section class="report-block report-table-wrap"><h2><span class="num">${num}</span>${title}</h2>${buildMissingNote(missing)}<table><thead><tr><th>번호</th><th>문제 제목</th><th>배점</th><th>난이도</th><th>문제유형</th></tr></thead><tbody>${body}</tbody></table></section>`;
+      }
+      return buildTable("05", "올해 시험지 문항별 문제유형", thisRows, missingThis) + buildTable("06", "작년도 시험지 문항별 문제유형", lastRows, missingLast);
     }
 
     function safeParseJson(text) {
@@ -807,61 +1484,108 @@
       return JSON.parse((fenced ? fenced[1] : text).trim());
     }
 
-    async function generateFinalReport() {
-      const apiKey = clean($("apiKey").value);
-      if (!apiKey) throw new Error("Gemini API 키를 입력해 주세요.");
-      if (!state.student.name || !state.student.schoolGrade || !state.student.examType) {
-        throw new Error("학생 이름, 학교/학년, 시험 종류를 모두 입력해 주세요.");
-      }
-      if (!state.scopeFiles.length) throw new Error("시험 범위 원문 자료를 업로드해 주세요.");
-      if (!state.examFile) throw new Error("실제 시험지 파일을 업로드해 주세요.");
-      const manualWrong = clean(wrongManualInput ? wrongManualInput.value : "");
-      if (!state.wrongFiles.length && !manualWrong && !state.wrongPastedImages.length) {
-        throw new Error("오답 자료를 입력해 주세요. (파일 업로드 / 스크린샷 붙여넣기 / 수기 입력)");
-      }
-      if (!Number.isFinite(state.student.score)) throw new Error("학생 총점을 입력해 주세요.");
+    // 학생 모드 문항 번호 표기: 객관식은 그대로, 논술형/서답형은 매칭 충돌을 피하려고
+    // 내부적으로 100+N / 200+N 으로 저장한 뒤 화면에는 "논술형N" / "서답형N"으로 보여준다.
+    function formatQuestionNumberLabel(number) {
+      const n = Number(number);
+      if (!Number.isFinite(n)) return String(number ?? "");
+      if (n >= 200) return `서답형${n - 200}`;
+      if (n >= 100) return `논술형${n - 100}`;
+      return String(n);
+    }
+    function sanitizeExamQuestionRow(q) {
+      const number = Number(q?.number);
+      const title = clean(q?.title || "");
+      if (!Number.isFinite(number) || !title) return null;
+      return {
+        number,
+        title,
+        score: toNum(q?.score, 0),
+        difficulty: /^(상|중|하)$/.test(clean(q?.difficulty || "")) ? clean(q.difficulty) : estimateDifficultyByTitle(title),
+        type: classifyQuestionTypeByTitle(q?.type || title)
+      };
+    }
+    // 같은 문항이 인접 페이지 문맥(prev/next) 참고로 인해 두 페이지에서 모두 잡힐 수 있으므로
+    // 번호 기준으로 병합하고, 제목이 더 온전한(긴) 쪽을 채택한다.
+    function mergeExamPageQuestions(pageRowsList) {
+      const map = new Map();
+      pageRowsList.forEach((rows) => {
+        (rows || []).forEach((r) => {
+          if (!r || !Number.isFinite(r.number)) return;
+          const existing = map.get(r.number);
+          if (!existing || clean(r.title).length > clean(existing.title).length) {
+            map.set(r.number, r);
+          }
+        });
+      });
+      return [...map.values()].sort((a, b) => a.number - b.number);
+    }
+    // 시험지를 페이지 단위로 나누어 각 페이지에서 "그 페이지 안에서 확인되는" 문항만 추출한다.
+    // 한 번의 거대한 프롬프트로 전체를 처리하면 글자수 제한(truncate)에 걸려 뒷부분 문항이
+    // 통째로 누락되는 문제가 있었기 때문에, 페이지별로 나누어 API를 호출해 누락을 방지한다.
+    async function extractQuestionsFromExamPage(apiKey, pageIndex, totalPages, pageText, prevTail, nextHead, statusEl) {
+      const trimmed = clean(pageText).slice(0, 6000);
+      if (trimmed.length < 15) return [];
+      statusEl.textContent = `AI 문항 추출 중... (${pageIndex}/${totalPages}페이지)`;
+      const prompt = `
+역할: 시험지 문항 추출기.
+아래는 전체 ${totalPages}페이지 시험지 중 ${pageIndex}번째 페이지의 OCR/텍스트다. OCR 특성상 오탈자나 깨진 기호가 섞여 있을 수 있으니 문맥으로 유추해라.
+이 페이지 "안에서 번호가 확인되는" 문항만 추출해라. 이 페이지에 없는 번호를 지어내지 마라(hallucination 금지). 앞/뒤 페이지 내용은 지문이 이어지는지 참고하는 용도로만 쓰고, 그 문항 자체를 추출하지는 마라.
+객관식 문항은 원래 번호(1,2,3...) 그대로 사용하고, "논술형N" 문항은 number를 100+N으로, "서답형N" 문항은 number를 200+N으로 표기해라(예: 논술형1→101, 논술형2→102, 서답형1→201). 하위 문항(예: 2-1, 2-2)이 별도로 채점되면 각각 다른 number를 매겨라(예: 논술형2-1→102, 논술형2-2→103처럼 순번을 이어서).
+title은 지문/본문 내용은 빼고 문두(질문 문장)만 40자 내외로 간결하게 적어라.
 
-      genStatus.textContent = "자료 텍스트 추출 중...";
-      state.scopeTexts = [];
-      for (const f of state.scopeFiles) {
-        const t = clean(await readFileText(f, genStatus));
-        if (t) state.scopeTexts.push(`[${f.name}]\n${t.slice(0, 14000)}`);
-      }
-      state.examText = clean(await readFileText(state.examFile, genStatus)).slice(0, 22000);
-      const wrongParts = [];
-      for (const f of state.wrongFiles) {
-        const t = clean(await readFileText(f, genStatus));
-        if (t) wrongParts.push(`[${f.name}]\n${t.slice(0, 12000)}`);
-      }
-      if (manualWrong) {
-        wrongParts.push(`[수기 오답 입력]\n${manualWrong}`);
-      }
-      for (let i = 0; i < state.wrongPastedImages.length; i++) {
-        const t = clean(await readDataUrlImageWithOCR(state.wrongPastedImages[i], genStatus, i + 1));
-        if (t) wrongParts.push(`[붙여넣기 스크린샷 ${i + 1} OCR]\n${t.slice(0, 12000)}`);
-      }
-      state.wrongText = wrongParts.join("\n\n");
+[참고: 이전 페이지 마지막 부분]
+${prevTail || "(없음)"}
 
-      genStatus.textContent = "AI 종합 보고서 생성 중...";
+[이 페이지 본문 - ${pageIndex}페이지]
+${trimmed}
+
+[참고: 다음 페이지 앞부분]
+${nextHead || "(없음)"}
+
+출력(JSON): {"questions":[{"number":1,"title":"...","score":2,"difficulty":"상|중|하","type":"..."}]}
+`;
+      try {
+        const raw = await fetchGemini(apiKey, prompt, true);
+        const parsed = safeParseJson(raw);
+        const rows = Array.isArray(parsed?.questions) ? parsed.questions : [];
+        return rows.map(sanitizeExamQuestionRow).filter(Boolean);
+      } catch (_) {
+        return [];
+      }
+    }
+    // 페이지별로 추출/병합해 이미 확정된 문항 목록(questions)을 바탕으로
+    // 오답 여부 판정과 총평/솔루션/시각화를 작성하는 마무리 단계.
+    // (원문 전체를 다시 보내지 않으므로 글자수 제한에 걸릴 위험이 없다)
+    async function synthesizeFinalReport(apiKey, ctx, statusEl) {
+      statusEl.textContent = "AI 종합 총평 작성 중... (문항 수가 많으면 최대 몇 분 정도 걸릴 수 있습니다)";
       const prompt = `
 역할: 데이터 기반 학습 전략 컨설턴트 AI.
 반드시 JSON만 출력.
 
-입력정보:
-- 학생: ${state.student.name}
-- 학교/학년: ${state.student.schoolGrade}
-- 시험종류: ${state.student.examType}
-- 학생총점: ${state.student.score}
-- 만점: ${state.student.maxScore || 100}
+학생 정보:
+- 이름: ${ctx.student.name}
+- 학교/학년: ${ctx.student.schoolGrade}
+- 시험종류: ${ctx.student.examType}
+- 총점: ${ctx.student.score} / 만점 ${ctx.student.maxScore || 100}
 
-시험 범위 원문:
-${state.scopeTexts.join("\n\n---\n\n").slice(0, 45000)}
+시험 범위 원문 요약(참고용):
+${ctx.scopeText.slice(0, 30000)}
 
-실제 시험지:
-${state.examText}
+페이지별로 추출·병합되어 이미 확정된 전체 문항 목록(JSON, 총 ${ctx.questions.length}문항):
+${JSON.stringify(ctx.questions)}
 
-오답 자료:
-${state.wrongText}
+오답 자료(학생이 틀린 문항 정보):
+${ctx.wrongText}
+
+작업 순서:
+1. 오답 자료를 바탕으로 questions 배열 각 항목에 isCorrect(true/false)를 채워라. 오답 자료에 언급되지 않은 문항은 true로 간주해라. number/title/score/difficulty/type은 절대 변경하지 말고 입력받은 그대로 반환해라(추가/누락 금지).
+2. 시험 총평, 학생 성취도, 학습 솔루션, 오답 상세 해설, 시각화 데이터를 작성해라.
+
+exam.killerQuestions 선정 기준(중요, 반드시 지킬 것):
+- "킬러문항"은 이 학생 개인의 오답 목록이 아니라, 응시자 전체 기준으로 변별력이 높고 객관적으로 어려운 문항을 의미한다. 이 학생이 맞힌 문항도 킬러문항으로 선정될 수 있고, 이 학생이 틀린 문항이라도 실제로는 평이하면 제외해야 한다.
+- 판단 근거 예시: 지문 길이/문장 구조의 복잡도, 매력적인 오답(distractor) 설계, 다단계 추론 요구, 어휘/구문의 특이성, 정답 후보 간 미세한 의미 차이, 해당 문항 유형이 일반적으로 응시자 오답률이 높은 유형인지 여부 등.
+- 오답 목록과 절대 동일한 번호 나열이 되지 않도록 하고, 왜 어려운지(변별 포인트)를 구체적으로 설명해라. 학생의 정오답 여부는 killerQuestions 판단에 참고만 하되 결정적 근거로 쓰지 마라.
 
 출력 스키마(JSON):
 {
@@ -890,17 +1614,92 @@ ${state.wrongText}
 }
 
 제약:
+- questions 배열의 문항 수는 입력받은 ${ctx.questions.length}개와 정확히 동일해야 한다.
 - 킬러문항은 오답 여부가 아니라 난이도/변형기법 기준으로 선정.
 - 오답풀이는 학습자에게 명확하게.
 - visuals 퍼센트는 현실적인 값, typeScoreRate 합계는 100.
-- questions는 시험지를 가능한 범위에서 문항 단위로 분해.
 `;
+      const raw = await fetchGemini(apiKey, prompt, true, LONG_TIMEOUT_MS);
+      return safeParseJson(raw);
+    }
 
-      const raw = await fetchGemini(apiKey, prompt, true);
-      const parsed = safeParseJson(raw);
+    async function generateFinalReport() {
+      const apiKey = clean($("apiKey").value);
+      if (!apiKey) throw new Error("Gemini API 키를 입력해 주세요.");
+      if (!state.student.name || !state.student.schoolGrade || !state.student.examType) {
+        throw new Error("학생 이름, 학교/학년, 시험 종류를 모두 입력해 주세요.");
+      }
+      if (!state.scopeFiles.length) throw new Error("시험 범위 원문 자료를 업로드해 주세요.");
+      if (!state.examFile) throw new Error("실제 시험지 파일을 업로드해 주세요.");
+      const manualWrong = clean(wrongManualInput ? wrongManualInput.value : "");
+      if (!state.wrongFiles.length && !manualWrong && !state.wrongPastedImages.length) {
+        throw new Error("오답 자료를 입력해 주세요. (파일 업로드 / 스크린샷 붙여넣기 / 수기 입력)");
+      }
+      if (!Number.isFinite(state.student.score)) throw new Error("학생 총점을 입력해 주세요.");
+
+      genStatus.textContent = "자료 텍스트 추출 중...";
+      state.scopeTexts = [];
+      for (const f of state.scopeFiles) {
+        const t = clean(await readFileText(f, genStatus));
+        if (t) state.scopeTexts.push(`[${f.name}]\n${t.slice(0, 14000)}`);
+      }
+
+      // 시험지는 페이지별로 텍스트를 나누어 추출한 뒤, 페이지마다 별도로 Gemini를 호출해
+      // 문항을 뽑아 병합한다. 한 번에 통짜로 보내면 22,000자 제한에 걸려 뒷부분 문항이
+      // 통째로 누락되던 문제(예: 실제 24문항인데 15문항만 인식)를 이렇게 근본적으로 해결한다.
+      const examName = state.examFile.name.toLowerCase();
+      let examPages;
+      try {
+        if (examName.endsWith(".pdf")) {
+          examPages = await extractPdfPagesHybridText(state.examFile, genStatus);
+        } else {
+          examPages = [clean(await readFileText(state.examFile, genStatus))];
+        }
+      } catch (e) {
+        throw toFriendlyFileError(e, state.examFile.name);
+      }
+      state.examText = examPages.join("\n\n").slice(0, 22000);
+
+      const perPageRows = [];
+      for (let i = 0; i < examPages.length; i++) {
+        const prevTail = i > 0 ? examPages[i - 1].slice(-600) : "";
+        const nextHead = i < examPages.length - 1 ? examPages[i + 1].slice(0, 600) : "";
+        perPageRows.push(await extractQuestionsFromExamPage(apiKey, i + 1, examPages.length, examPages[i], prevTail, nextHead, genStatus));
+      }
+      const mergedQuestions = mergeExamPageQuestions(perPageRows);
+      if (!mergedQuestions.length) {
+        throw new Error("시험지에서 문항을 인식하지 못했습니다. 스캔 품질을 확인하거나 다시 업로드해 주세요.");
+      }
+
+      const wrongParts = [];
+      for (const f of state.wrongFiles) {
+        const t = clean(await readFileText(f, genStatus));
+        if (t) wrongParts.push(`[${f.name}]\n${t.slice(0, 12000)}`);
+      }
+      if (manualWrong) {
+        wrongParts.push(`[수기 오답 입력]\n${manualWrong}`);
+      }
+      for (let i = 0; i < state.wrongPastedImages.length; i++) {
+        const t = clean(await readDataUrlImageWithOCR(state.wrongPastedImages[i], genStatus, i + 1));
+        if (t) wrongParts.push(`[붙여넣기 스크린샷 ${i + 1} OCR]\n${t.slice(0, 12000)}`);
+      }
+      state.wrongText = wrongParts.join("\n\n");
+
+      const narrative = await synthesizeFinalReport(apiKey, {
+        student: state.student,
+        scopeText: state.scopeTexts.join("\n\n---\n\n"),
+        questions: mergedQuestions,
+        wrongText: state.wrongText
+      }, genStatus);
+
+      const finalQuestions = Array.isArray(narrative.questions) && narrative.questions.length === mergedQuestions.length
+        ? narrative.questions
+        : mergedQuestions.map((q) => ({ ...q, isCorrect: true }));
+
+      const parsed = { ...narrative, questions: finalQuestions };
       if (!Array.isArray(parsed.questions) || !parsed.questions.length) throw new Error("문항 분석 결과가 비어 있습니다.");
       renderReport(parsed);
-      genStatus.textContent = "최종 보고서 생성 완료";
+      genStatus.textContent = `최종 보고서 생성 완료 (총 ${parsed.questions.length}문항 인식)`;
     }
 
     async function generateCompareReport() {
@@ -911,10 +1710,19 @@ ${state.wrongText}
       if (!thisFile) throw new Error("올해 시험지 파일을 업로드해 주세요.");
 
       compareStatus.textContent = "시험지 텍스트 추출 중...";
-      const thisText = clean(await readFileText(thisFile, compareStatus)).slice(0, 22000);
+      const thisTextFull = clean(await readFileText(thisFile, compareStatus));
       const compareInfo = clean($("compareExamInfo").value) || "시험지 난이도 비교";
       const hasLastYear = !!lastFile;
-      const lastText = hasLastYear ? clean(await readFileText(lastFile, compareStatus)).slice(0, 22000) : "";
+      const lastTextFull = hasLastYear ? clean(await readFileText(lastFile, compareStatus)) : "";
+      if (thisTextFull.length < 120) {
+        throw new Error("올해 시험지 텍스트를 충분히 추출하지 못했습니다. 스캔 품질이 낮으면 OCR용 이미지/PDF로 다시 업로드해 주세요.");
+      }
+      if (hasLastYear && lastTextFull.length < 120) {
+        throw new Error("작년도 시험지 텍스트를 충분히 추출하지 못했습니다. 파일을 다시 확인해 주세요.");
+      }
+      // 문항 파싱/유형 분류는 반드시 전체 텍스트 기준으로 수행
+      const thisText = thisTextFull;
+      const lastText = lastTextFull;
 
       const lastSig = hasLastYear ? computeDifficultySignals(lastText) : { chars: 0, words: 0, sentences: 1, avgSentenceLen: 0, questionMarkers: 0, inferenceHits: 0, grammarVocabHits: 0, distractorHits: 0, timePressureHits: 0, lexicalVar: 0 };
       const thisSig = computeDifficultySignals(thisText);
@@ -922,6 +1730,11 @@ ${state.wrongText}
       const lastTypeDist = buildTypeDistribution(lastText);
       const thisTypeDist = buildTypeDistribution(thisText);
       const typeDistribution = mergeTwoTypeDistributions(lastTypeDist, thisTypeDist);
+      // 로컬 정규식 파서 결과는 AI가 놓친 번호를 보충하는 용도로만 사용(비용 절감을 위해 아직 Gemini로 보정하지 않음)
+      const parsedThisQuestions = parseQuestionListFromText(thisText, 0);
+      const parsedLastQuestions = hasLastYear ? parseQuestionListFromText(lastText, 0) : [];
+      const localThisQuestionTypes = sanitizeQuestionTypeRows(parsedThisQuestions.length ? parsedThisQuestions : fallbackQuestionListFromTypeDistribution(thisTypeDist, "올해 시험지"));
+      const localLastQuestionTypes = hasLastYear ? sanitizeQuestionTypeRows(parsedLastQuestions.length ? parsedLastQuestions : fallbackQuestionListFromTypeDistribution(lastTypeDist, "작년 시험지")) : [];
       const lastAvg = hasLastYear ? Math.round(factorComparison.reduce((a, b) => a + b.lastYear, 0) / factorComparison.length) : 0;
       const thisAvg = Math.round(factorComparison.reduce((a, b) => a + b.thisYear, 0) / factorComparison.length);
       const delta = hasLastYear ? (thisAvg - lastAvg) : 0;
@@ -929,7 +1742,7 @@ ${state.wrongText}
         .map((x) => ({ label: x.label, diff: Math.abs((x.thisYear || 0) - (x.lastYear || 0)) }))
         .sort((a, b) => b.diff - a.diff)[0]?.label || "핵심 출제 영역";
 
-      compareStatus.textContent = "AI 총평 생성 중...";
+      compareStatus.textContent = "AI 총평 생성 중... (문항 수가 많으면 최대 몇 분 정도 걸릴 수 있습니다)";
       const narrativePrompt = `
 역할: 시험지 난이도 분석가.
 반드시 JSON만 출력.
@@ -942,21 +1755,48 @@ ${state.wrongText}
 작년 시간압박표현: ${lastSig.timePressureHits}, 올해 시간압박표현: ${thisSig.timePressureHits}
 
 [작년도 시험 원문]
-${lastText.slice(0, 18000)}
+${lastText.slice(0, 22000)}
 
 [올해 시험 원문]
-${thisText.slice(0, 18000)}
+${thisText.slice(0, 22000)}
+
+questionTypes 작성 규칙:
+- 시험지 원문을 직접 읽고 문항을 식별해라(번호 순서대로, 가능한 모든 문항 포함, 서답형 포함).
+- title은 지문/대화 본문을 포함하지 말고 "문두(질문 문장)"만 40자 내외로 간결하게 작성해라.
+- score는 원문에 [N점]으로 명시된 경우에만 그 값을 쓰고, 없으면 0으로 표기해라. OCR 노이즈로 보이는 비정상적인 숫자(예: 세 자리 이상)는 사용하지 마라.
 
 출력 스키마:
 {
  "overview":"...",
  "keyChanges":["...","...","..."],
  "difficultyReview":"...",
- "studyPlan":["...","...","..."]
+ "studyPlan":["...","...","..."],
+ "questionTypes":{
+   "thisYear":[{"number":1,"title":"...","score":2,"difficulty":"상|중|하","type":"..."}],
+   "lastYear":[{"number":1,"title":"...","score":2,"difficulty":"상|중|하","type":"..."}]
+ }
 }
 `;
-      const raw = await fetchGemini(apiKey, narrativePrompt, true);
+      const raw = await fetchGemini(apiKey, narrativePrompt, true, LONG_TIMEOUT_MS);
       const narrative = safeParseJson(raw);
+
+      // AI가 원문을 직접 읽고 정리한 목록을 우선 사용하고, AI가 다루지 못한 번호만
+      // 로컬 파서 결과로 보충한다(필요한 경우에만 별도로 Gemini 보정을 돌려 비용을 아낀다).
+      const aiThisQuestionTypes = sanitizeQuestionTypeRows(narrative?.questionTypes?.thisYear);
+      const aiLastQuestionTypes = hasLastYear ? sanitizeQuestionTypeRows(narrative?.questionTypes?.lastYear) : [];
+      const aiThisNums = new Set(aiThisQuestionTypes.map((r) => r.number));
+      const aiLastNums = new Set(aiLastQuestionTypes.map((r) => r.number));
+      let supplementThis = localThisQuestionTypes.filter((r) => !aiThisNums.has(r.number));
+      let supplementLast = localLastQuestionTypes.filter((r) => !aiLastNums.has(r.number));
+      if (supplementThis.length) {
+        supplementThis = await repairQuestionRowsWithGemini(apiKey, supplementThis, thisText, compareStatus, "올해(보충)");
+      }
+      if (hasLastYear && supplementLast.length) {
+        supplementLast = await repairQuestionRowsWithGemini(apiKey, supplementLast, lastText, compareStatus, "작년(보충)");
+      }
+      const thisQuestionTypes = mergeQuestionTypeLists(aiThisQuestionTypes, supplementThis);
+      const lastQuestionTypes = hasLastYear ? mergeQuestionTypeLists(aiLastQuestionTypes, supplementLast) : [];
+
       const parsed = {
         summary: {
           lastYearDifficulty: hasLastYear ? toLevel(lastAvg) : "-",
@@ -968,7 +1808,12 @@ ${thisText.slice(0, 18000)}
         keyChanges: narrative.keyChanges || [],
         difficultyReview: narrative.difficultyReview || "",
         visuals: { factorComparison, typeDistribution },
-        studyPlan: narrative.studyPlan || []
+        studyPlan: narrative.studyPlan || [],
+        questionTypes: { thisYear: thisQuestionTypes, lastYear: lastQuestionTypes },
+        missingNumbers: {
+          thisYear: findMissingQuestionNumbers(thisQuestionTypes),
+          lastYear: hasLastYear ? findMissingQuestionNumbers(lastQuestionTypes) : []
+        }
       };
       renderCompareReport(parsed);
       compareStatus.textContent = hasLastYear ? "난이도 비교 분석 완료" : "단일 시험 난이도 분석 완료";
@@ -979,25 +1824,33 @@ ${thisText.slice(0, 18000)}
     window.generateCompareReport = generateCompareReport;
     window.exportResultHtml = exportResultHtml;
 
+    function buildExportDoc(title, bodyInnerHtml) {
+      // 라이브 앱과 동일한 스타일(A4 인쇄 규칙 포함)을 그대로 재사용해 미리보기와 내보내기 결과가 일치하도록 함
+      const baseCss = Array.from(document.querySelectorAll("style")).map((s) => s.textContent).join("\n");
+      const extraCss = `
+        body{background:#eef2f7;}
+        .export-page{width:min(900px,94%);margin:24px auto 60px;}
+        .print-bar{display:flex;justify-content:flex-end;margin-bottom:12px;}
+        .print-bar button{border:none;border-radius:10px;padding:10px 16px;font-size:0.92rem;font-weight:700;cursor:pointer;background:#0f766e;color:#fff;}
+        @media print{ .print-bar{display:none !important;} .export-page{width:auto;margin:0;} }
+      `;
+      return `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>${baseCss}\n${extraCss}</style></head><body><div class="export-page"><div class="print-bar"><button onclick="window.print()">인쇄 / PDF 저장</button></div>${bodyInnerHtml}</div></body></html>`;
+    }
+
+    function downloadHtmlFile(html, filename) {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+
     function exportResultHtml() {
-      const logoSrc = $("brandLogo")?.src || "";
       const mode = $("modeSelect").value;
       if (mode === "compare") {
         if (!state.compareReport) { compareStatus.textContent = "먼저 난이도 비교 분석을 실행해 주세요."; return; }
-        const c1 = $("compareBar").toDataURL("image/png");
-        const c2 = $("compareTypeBar").toDataURL("image/png");
-        const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>시험지 난이도 비교 보고서</title><style>
-          body{margin:0;background:#eef2f7;color:#0f172a;font-family:"Noto Sans KR","Apple SD Gothic Neo",sans-serif}
-          .wrap{width:min(1180px,94%);margin:24px auto}
-          .hero{background:linear-gradient(130deg,#0f766e,#155e75);color:#ecfeff;border-radius:16px;padding:20px;display:flex;gap:12px;align-items:center}
-          .logo{width:64px;height:64px;border-radius:10px;object-fit:cover;background:rgba(255,255,255,.25)}
-          .panel{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:14px;margin-top:12px}
-          .charts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-          img{max-width:100%;border:1px solid #e2e8f0;border-radius:10px;background:#fff}
-          @media(max-width:900px){.charts{grid-template-columns:1fr}}
-        </style></head><body><main class="wrap"><section class="hero"><img class="logo" src="${logoSrc}"><div><h2 style="margin:0 0 6px;">시험지 난이도 비교 분석 보고서</h2><div>앱 분석 결과와 동일한 시각화 보고서</div></div></section><section class="panel">${$("compareReportArea").innerHTML}</section><section class="panel"><h3>시각화</h3><div class="charts"><img src="${c1}"><img src="${c2}"></div></section></main></body></html>`;
-        const b = new Blob([html], { type: "text/html;charset=utf-8" });
-        const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "시험지-난이도-비교-보고서.html"; document.body.appendChild(a); a.click(); a.remove();
+        const html = buildExportDoc("시험지 난이도 비교 보고서", $("compareReportArea").innerHTML);
+        downloadHtmlFile(html, "시험지-난이도-비교-보고서.html");
         compareStatus.textContent = "비교 보고서 HTML 내보내기 완료";
         return;
       }
@@ -1005,35 +1858,8 @@ ${thisText.slice(0, 18000)}
         genStatus.textContent = "먼저 보고서를 생성해 주세요.";
         return;
       }
-      const pie = $("pieChart").toDataURL("image/png");
-      const bar = $("barChart").toDataURL("image/png");
-      const radar = $("radarChart").toDataURL("image/png");
-      const summaryHtml = $("sumQuestions") ? `
-        <div class="cards">
-          <div class="card"><div class="k">총 문항 수</div><div class="v">${$("sumQuestions").textContent}</div></div>
-          <div class="card"><div class="k">학생 총점</div><div class="v">${$("sumScore").textContent}</div></div>
-          <div class="card"><div class="k">예상 백분위</div><div class="v">${$("sumPercentile").textContent}</div></div>
-          <div class="card"><div class="k">최다 유형</div><div class="v">${$("sumTopType").textContent}</div></div>
-        </div>` : "";
-      const reportHtml = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${state.student.name} 보고서</title><style>
-        :root{--bg:#eef2f7;--panel:#fff;--line:#d9e2ec;--ink:#0f172a;--muted:#64748b}
-        body{margin:0;background:radial-gradient(circle at 0% 0%,#dbeafe,transparent 35%),radial-gradient(circle at 100% 20%,#ccfbf1,transparent 30%),var(--bg);color:var(--ink);font-family:"Noto Sans KR","Apple SD Gothic Neo",sans-serif}
-        .wrap{width:min(1180px,94%);margin:24px auto}
-        .hero{background:linear-gradient(130deg,#0f766e,#155e75);color:#ecfeff;border-radius:16px;padding:20px;display:flex;gap:12px;align-items:center}
-        .logo{width:64px;height:64px;border-radius:10px;object-fit:cover;background:rgba(255,255,255,.25)}
-        .panel{background:var(--panel);border:1px solid #e2e8f0;border-radius:16px;padding:14px;margin-top:12px}
-        .cards{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-bottom:10px}
-        .card{border:1px solid #e2e8f0;border-radius:12px;padding:10px;background:#fafafa}.k{color:var(--muted);font-size:12px}.v{font-size:30px;font-weight:800}
-        .charts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
-        img{max-width:100%;border:1px solid #e2e8f0;border-radius:10px;background:#fff}
-        table{width:100%;border-collapse:collapse;font-size:14px}th,td{border-bottom:1px solid #e2e8f0;padding:8px;text-align:left}th{background:#f8fafc}
-        .section{border-left:4px solid #99f6e4;padding-left:10px;margin:12px 0}
-      </style></head><body><main class="wrap"><section class="hero"><img class="logo" src="${logoSrc}"><div><h2 style="margin:0 0 6px;">${state.student.name || "학생"} 시험 분석 보고서</h2><div>앱 분석 결과와 동일한 스타일 요약</div></div></section><section class="panel">${summaryHtml}<div class="charts"><img src="${pie}" alt="파이"><img src="${bar}" alt="막대"><img src="${radar}" alt="레이더"></div><table><thead><tr><th>번호</th><th>문제 제목</th><th>배점</th><th>난이도</th><th>문제유형</th><th>정오</th></tr></thead><tbody>${tbody.innerHTML}</tbody></table></section><section class="panel report">${$("reportArea").innerHTML}</section></main></body></html>`;
-      const blob = new Blob([reportHtml], { type: "text/html;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `${state.student.name || "student"}-학습전략보고서.html`;
-      document.body.appendChild(a); a.click(); a.remove();
+      const html = buildExportDoc(`${state.student.name} 보고서`, $("reportArea").innerHTML);
+      downloadHtmlFile(html, `${state.student.name || "student"}-학습전략보고서.html`);
       genStatus.textContent = "결과 HTML 내보내기 완료";
     }
 
@@ -1089,8 +1915,16 @@ ${thisText.slice(0, 18000)}
       catch (e) { compareStatus.textContent = `비교 분석 실패: ${e.message}`; }
     });
     $("compareExportBtn").addEventListener("click", exportResultHtml);
+    $("comparePrintBtn").addEventListener("click", () => {
+      if (!state.compareReport) { compareStatus.textContent = "먼저 난이도 비교 분석을 실행해 주세요."; return; }
+      window.print();
+    });
 
     $("exportBtn").addEventListener("click", exportResultHtml);
+    $("printBtn").addEventListener("click", () => {
+      if (!state.report) { genStatus.textContent = "먼저 보고서를 생성해 주세요."; return; }
+      window.print();
+    });
     $("apiKey").addEventListener("input", (e) => {
       const ok = saveApiKey(e.target.value.trim());
       if (!ok) genStatus.textContent = "브라우저 저장소 접근이 제한되어 API 키 자동 저장이 불가합니다.";
